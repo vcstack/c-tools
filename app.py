@@ -174,7 +174,10 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
 def launch_ui(share: bool = True, server_name: str = "0.0.0.0"):
     demo = build_ui()
     demo.queue()
-    demo.launch(share=share, server_name=server_name, inline=True)
+    try:
+        demo.launch(share=share, server_name=server_name, inline=True)
+    except TypeError:
+        demo.launch(share=share, server_name=server_name)
 
 
 if __name__ == "__main__":

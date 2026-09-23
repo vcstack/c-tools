@@ -12,7 +12,7 @@ uv pip install --python "$PY" \
   "huggingface-hub>=0.16.4,<0.18" \
   "tokenizers==0.14.1" \
   "transformers==4.34.1" \
-  python-dotenv soundfile "gradio==4.44.1" yt-dlp
+  python-dotenv soundfile "gradio==3.50.2" yt-dlp
 
 uv pip install --python "$PY" \
   --extra-index-url https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
