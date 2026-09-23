@@ -1,0 +1,10 @@
+.venv/
+.env
+.cache/
+SoniTranslate/
+__pycache__/
+*.pyc
+WHISPER_MODELS/
+whisper_api_audio_parts/
+output/*.json
+!output/.gitkeep

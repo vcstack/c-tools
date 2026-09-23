@@ -1,0 +1,12 @@
+# Core ML (install CPU build from pytorch.org or CUDA wheel as needed)
+torch>=2.1.0
+torchaudio>=2.1.0
+numpy
+soundfile>=0.12.1
+python-dotenv>=1.0.0
+
+# ASR + alignment + diarization (same forks as SoniTranslate requirements_base.txt)
+ctranslate2<=4.4.0
+transformers<=4.39.3
+git+https://github.com/R3gm/pyannote-audio.git@3.1.1
+git+https://github.com/R3gm/whisperX.git@cuda_12_x
