@@ -42,9 +42,9 @@ HF_TOKEN=your_token_here
 Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab (GPU T4).
 
 1. Run **Reset + cài** — creates Python 3.10 venv (whisper-jax cannot use Colab 3.13).
-2. Run **Chạy C-tool** — paste a media URL, set token/model, run. JSON downloads in the notebook.
+2. Run **Mở UI** — installs Gradio on Colab's Python and opens the form. Pipeline still runs inside the venv.
 
-No Gradio on Colab (avoids FastAPI/Pydantic/Jinja conflicts). Local optional UI: `python app.py`.
+Do not install Gradio into `ctool-venv` (breaks whisper-jax pins). Local optional UI: `python app.py`.
 
 ## Install
 

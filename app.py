@@ -216,4 +216,12 @@ def launch_ui(share: bool = True, server_name: str = "0.0.0.0"):
 
 
 if __name__ == "__main__":
+    try:
+        import gradio  # noqa: F401
+    except ImportError:
+        raise SystemExit(
+            "Gradio is not in this interpreter.\n"
+            "Colab: run the notebook cell 'Mở UI' (Colab Python + colab_app.py).\n"
+            "Do not run this file with /content/ctool-venv/bin/python."
+        )
     launch_ui(share=False)
