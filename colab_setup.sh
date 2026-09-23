@@ -27,6 +27,10 @@ uv pip install --python "$PY" \
   || uv pip install --python "$PY" torch torchaudio
 uv pip install --python "$PY" "pyannote.audio==3.1.1" "huggingface-hub>=0.16.4,<0.18"
 # Gradio 3.50 breaks with current Jinja2/Starlette (TemplateResponse cache key is a dict)
-uv pip install --python "$PY" "jinja2==3.1.2" "starlette==0.27.0" "fastapi==0.104.1"
+uv pip install --python "$PY" \
+  "pydantic==2.8.2" \
+  "jinja2==3.1.2" \
+  "starlette==0.27.0" \
+  "fastapi==0.104.1"
 
 "$PY" -c "import sys, torch; from whisper_jax import FlaxWhisperPipline; print(sys.version); print('torch', torch.__version__); print('whisper-jax OK')"
