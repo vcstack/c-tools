@@ -4,6 +4,7 @@ torchaudio>=2.1.0
 numpy
 soundfile>=0.12.1
 python-dotenv>=1.0.0
+gradio>=4.44.0
 
 # ASR + alignment + diarization
 ctranslate2<=4.4.0

@@ -37,12 +37,17 @@ HF_TOKEN=your_token_here
 
 ## Google Colab
 
-Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab. It clones [vcstack/c-tools](https://github.com/vcstack/c-tools).
+Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab. It clones [vcstack/c-tools](https://github.com/vcstack/c-tools) and starts a Gradio UI.
 
 1. Runtime → **GPU (T4)**.
-2. Run cells: clone C-tool + install WhisperX/pyannote → paste `HF_TOKEN`.
-3. Upload media or use the sample clip.
-4. Run the pipeline and download `result.json`.
+2. Run the install cell, then the UI cell.
+3. Upload media (or tick the sample), set model / speakers, click **Run**.
+4. Download JSON from the UI.
+
+```bash
+pip install gradio
+python app.py
+```
 
 ## Install
 
