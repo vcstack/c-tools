@@ -67,6 +67,7 @@ def run_job(
     min_speakers,
     max_speakers,
     cookies_file=None,
+    cookies_text=None,
     use_sample=False,
 ):
     if not PY.is_file():
@@ -110,6 +111,11 @@ def run_job(
     if lang:
         cmd.extend(["--language", lang])
     cookies = _as_path(cookies_file)
+    pasted = (cookies_text or "").strip()
+    if pasted:
+        from pipeline.download import cookies_text_to_file
+
+        cookies = cookies_text_to_file(pasted, ROOT / "input" / "cookies.txt")
     if cookies:
         cmd.extend(["--cookies", str(cookies)])
 
@@ -144,9 +150,8 @@ def build_ui():
         gr.Markdown(
             "# C-tool\n"
             "Video / audio URL → whisper-jax + pyannote → JSON\n\n"
-            "Colab IP hay bị YouTube hỏi login. Export cookies.txt "
-            "([hướng dẫn yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)) "
-            "rồi upload ở ô cookies."
+            "Colab IP hay bị YouTube hỏi login. Dán cookies vào ô bên dưới "
+            "([yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies))."
         )
         with gr.Row():
             with gr.Column(scale=1):
@@ -167,8 +172,13 @@ def build_ui():
                         ".flac",
                     ],
                 )
+                cookies_text = gr.Textbox(
+                    label="YouTube cookies (dán, không cần upload file)",
+                    placeholder="Dán nội dung cookies.txt hoặc header Cookie: VISITOR_INFO1_LIVE=...; SID=...",
+                    lines=4,
+                )
                 cookies = gr.File(
-                    label="YouTube cookies.txt (cần khi Colab bị chặn bot)",
+                    label="Hoặc upload cookies.txt",
                     file_types=[".txt"],
                 )
                 hf_token = gr.Textbox(label="Hugging Face token", type="password")
@@ -209,6 +219,7 @@ def build_ui():
                 min_speakers,
                 max_speakers,
                 cookies,
+                cookies_text,
             ],
             outputs=outputs,
         )

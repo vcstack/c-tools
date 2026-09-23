@@ -85,7 +85,7 @@ python main.py --input ./input/test.wav --output ./output/result.json --model ti
 | `--diarization-model` | `pyannote_3.1` (default), `pyannote_2.1`, or `disable` |
 | `--cookies` | Netscape `cookies.txt` for YouTube (Colab IPs often require this) |
 
-YouTube on Colab may ask to sign in. Export cookies while logged into YouTube ([yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)), then upload `cookies.txt` in the UI or pass `--cookies`.
+YouTube on Colab may ask to sign in. Paste cookies into the UI box (Netscape file contents or a `Cookie:` header) or pass `--cookies`. See [yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
 
 ## Output JSON
 

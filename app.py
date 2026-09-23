@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from pipeline.config import PipelineConfig, resolve_device
-from pipeline.download import download_media_url, is_url
+from pipeline.download import cookies_text_to_file, download_media_url, is_url
 from pipeline.pipeline import run_pipeline
 
 SAMPLE_URL = "https://github.com/openai/whisper/raw/main/tests/jfk.flac"
@@ -43,13 +43,16 @@ def _as_local_path(media_file) -> Path | None:
     return path if path.is_file() else None
 
 
-def _media_path(media_url, media_file, use_sample: bool, cookies=None) -> Path:
+def _media_path(media_url, media_file, use_sample: bool, cookies=None, cookies_text=None) -> Path:
     if use_sample:
         return _ensure_sample()
     url = (media_url or "").strip()
     if is_url(url):
         print(f"Downloading: {url}")
         cookie_path = _as_local_path(cookies)
+        pasted = (cookies_text or "").strip()
+        if pasted:
+            cookie_path = cookies_text_to_file(pasted, ROOT / "input" / "cookies.txt")
         return download_media_url(url, ROOT / "input", cookies=cookie_path)
     local = _as_local_path(media_file)
     if local:
@@ -69,9 +72,12 @@ def run_job(
     batch_size,
     device,
     cookies_file=None,
+    cookies_text=None,
 ):
     try:
-        input_path = _media_path(media_url, media_file, bool(use_sample), cookies_file)
+        input_path = _media_path(
+            media_url, media_file, bool(use_sample), cookies_file, cookies_text
+        )
     except ValueError as exc:
         return str(exc), "", None, None
 
@@ -148,7 +154,12 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                     "Hoặc upload file (không bắt buộc)",
                     file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
                 )
-                cookies = _gr_file("YouTube cookies.txt (nếu bị chặn bot)", file_types=[".txt"])
+                cookies_text = gr.Textbox(
+                    label="YouTube cookies (dán, không cần upload file)",
+                    placeholder="Dán cookies.txt hoặc header Cookie: ...",
+                    lines=4,
+                )
+                cookies = _gr_file("Hoặc upload cookies.txt", file_types=[".txt"])
                 use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
                 hf_token = gr.Textbox(
                     label="Hugging Face token",
@@ -198,6 +209,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 batch_size,
                 device,
                 cookies,
+                cookies_text,
             ],
             outputs=outputs,
         )

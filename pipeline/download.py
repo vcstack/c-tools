@@ -9,7 +9,35 @@ from pathlib import Path
 from pipeline.audio import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 
 
+def cookies_text_to_file(text: str, dest: str | Path | None = None) -> Path:
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty cookies text")
+    dest_path = Path(dest) if dest else Path("input") / "cookies.txt"
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    if raw.lstrip().startswith("# Netscape") or "\t" in raw:
+        body = raw if raw.endswith("\n") else raw + "\n"
+    else:
+        lines = ["# Netscape HTTP Cookie File"]
+        for part in raw.replace("\n", " ").split(";"):
+            part = part.strip()
+            if "=" not in part:
+                continue
+            name, value = part.split("=", 1)
+            name, value = name.strip(), value.strip()
+            if name:
+                lines.append(f".youtube.com\tTRUE\t/\tTRUE\t0\t{name}\t{value}")
+        if len(lines) < 2:
+            raise ValueError("No cookies found in pasted text")
+        body = "\n".join(lines) + "\n"
+    dest_path.write_text(body, encoding="utf-8")
+    return dest_path
+
+
 def resolve_cookies(explicit: str | Path | None = None) -> Path | None:
+    pasted = (os.environ.get("CTOOL_COOKIES_TEXT") or "").strip()
+    if pasted:
+        return cookies_text_to_file(pasted, Path("input") / "cookies.txt")
     candidates: list[Path] = []
     if explicit:
         candidates.append(Path(explicit))
