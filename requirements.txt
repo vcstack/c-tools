@@ -2,12 +2,14 @@ numpy
 soundfile>=0.12.1
 python-dotenv>=1.0.0
 gradio>=4.44.0
-transformers
+numpy<2.3
+huggingface-hub>=0.16.4,<0.18
+tokenizers==0.14.1
+transformers==4.34.1
 # Install the matching JAX wheel first (CPU / CUDA / TPU):
 #   pip install -U "jax[cuda12]"
-#   pip install git+https://github.com/sanchit-gandhi/whisper-jax.git
 git+https://github.com/sanchit-gandhi/whisper-jax.git
 torch>=2.1.0
 torchaudio>=2.1.0
-pyannote.audio>=3.1.1
+pyannote.audio==3.1.1
 yt-dlp
