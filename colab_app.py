@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import urllib.request
 from pathlib import Path
 
 ROOT = Path("/content/c-tools")
@@ -20,6 +21,15 @@ if not ROOT.is_dir():
     ROOT = Path(__file__).resolve().parent
 PY = Path("/content/ctool-venv/bin/python")
 OUT = ROOT / "output" / "result.json"
+SAMPLE_URL = "https://github.com/openai/whisper/raw/main/tests/jfk.flac"
+SAMPLE_PATH = ROOT / "input" / "jfk.flac"
+
+
+def _ensure_sample() -> Path:
+    SAMPLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not SAMPLE_PATH.is_file() or SAMPLE_PATH.stat().st_size == 0:
+        urllib.request.urlretrieve(SAMPLE_URL, SAMPLE_PATH)
+    return SAMPLE_PATH
 
 
 def _as_path(media_file) -> Path | None:
@@ -35,18 +45,30 @@ def _as_path(media_file) -> Path | None:
     return path if path.is_file() else None
 
 
-def run_job(media_url, media_file, hf_token, model, language, min_speakers, max_speakers):
+def run_job(
+    media_url,
+    media_file,
+    hf_token,
+    model,
+    language,
+    min_speakers,
+    max_speakers,
+    use_sample=False,
+):
     if not PY.is_file():
         return "Chưa có venv. Chạy cell Reset + cài trước.", "", None, None
 
-    url = (media_url or "").strip()
-    local = _as_path(media_file)
-    if url:
-        source = url
-    elif local:
-        source = str(local)
+    if use_sample:
+        source = str(_ensure_sample())
     else:
-        return "Dán Media URL (YouTube, ...) hoặc upload file.", "", None, None
+        url = (media_url or "").strip()
+        local = _as_path(media_file)
+        if url:
+            source = url
+        elif local:
+            source = str(local)
+        else:
+            return "Dán Media URL (YouTube, ...) hoặc upload file. Hoặc bấm Test.", "", None, None
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -94,6 +116,11 @@ def run_job(media_url, media_file, hf_token, model, language, min_speakers, max_
     return status, pretty, rows, str(OUT)
 
 
+def run_test():
+    # JFK clip, tiny, 1 speaker — no HF token needed
+    return run_job("", None, "", "tiny", "en", 1, 1, use_sample=True)
+
+
 def build_ui():
     import gradio as gr
 
@@ -134,7 +161,9 @@ def build_ui():
                 with gr.Row():
                     min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
                     max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
-                run_btn = gr.Button("Run", variant="primary")
+                with gr.Row():
+                    run_btn = gr.Button("Run", variant="primary")
+                    test_btn = gr.Button("Test (JFK)")
             with gr.Column(scale=2):
                 status = gr.Textbox(label="Status", lines=2)
                 table = gr.Dataframe(
@@ -145,6 +174,7 @@ def build_ui():
                 json_out = gr.Code(label="JSON", language="json")
                 download = gr.File(label="Download result.json")
 
+        outputs = [status, json_out, table, download]
         run_btn.click(
             run_job,
             inputs=[
@@ -156,8 +186,9 @@ def build_ui():
                 min_speakers,
                 max_speakers,
             ],
-            outputs=[status, json_out, table, download],
+            outputs=outputs,
         )
+        test_btn.click(run_test, inputs=[], outputs=outputs)
     return demo
 
 

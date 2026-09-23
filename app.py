@@ -167,7 +167,9 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 with gr.Row():
                     batch_size = gr.Number(label="Batch size", value=8, precision=0)
                     device = gr.Dropdown(["auto", "cuda", "cpu", "tpu"], value="auto", label="Device")
-                run_btn = gr.Button("Run", variant="primary")
+                with gr.Row():
+                    run_btn = gr.Button("Run", variant="primary")
+                    test_btn = gr.Button("Test (JFK)")
             with gr.Column(scale=2):
                 status = gr.Textbox(label="Status", lines=2)
                 table = gr.Dataframe(
@@ -178,6 +180,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 json_out = gr.Code(label="JSON", language="json")
                 download = _gr_file("Download result.json")
 
+        outputs = [status, json_out, table, download]
         run_btn.click(
             run_job,
             inputs=[
@@ -192,7 +195,12 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 batch_size,
                 device,
             ],
-            outputs=[status, json_out, table, download],
+            outputs=outputs,
+        )
+        test_btn.click(
+            lambda hf, bs, dev: run_job("", None, True, hf, "tiny", "en", 1, 1, bs, dev),
+            inputs=[hf_token, batch_size, device],
+            outputs=outputs,
         )
     return demo
 
