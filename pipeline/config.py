@@ -33,6 +33,7 @@ class PipelineConfig:
     device: str = "cpu"
     hf_token: str | None = None
     work_dir: str = ".cache/pipeline"
+    cookies_path: str | None = None
 
 
 def _jax_backend() -> str | None:

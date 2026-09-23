@@ -30,7 +30,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
     raw = str(input_path).strip()
     if is_url(raw):
         print("Downloading URL...")
-        input_path = download_media_url(raw, Path("input"))
+        input_path = download_media_url(raw, Path("input"), cookies=config.cookies_path)
     input_path = validate_input(input_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

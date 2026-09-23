@@ -63,6 +63,11 @@ def parse_args() -> argparse.Namespace:
         default=".cache/pipeline",
         help="Temporary working directory for extracted audio",
     )
+    parser.add_argument(
+        "--cookies",
+        default=None,
+        help="Netscape cookies.txt for YouTube (Colab IPs often need this)",
+    )
     return parser.parse_args()
 
 
@@ -77,6 +82,7 @@ def main() -> int:
         max_speakers=args.max_speakers,
         device=resolve_device(args.device),
         work_dir=args.work_dir,
+        cookies_path=args.cookies,
     )
     config.diarization_model_key = args.diarization_model
     if args.diarization_model == "disable":

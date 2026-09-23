@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
 from pipeline.audio import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
+
+
+def resolve_cookies(explicit: str | Path | None = None) -> Path | None:
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit))
+    env = (os.environ.get("CTOOL_COOKIES") or os.environ.get("YTDLP_COOKIES") or "").strip()
+    if env:
+        candidates.append(Path(env))
+    candidates.extend((Path("input/cookies.txt"), Path("cookies.txt")))
+    for path in candidates:
+        if path.is_file() and path.stat().st_size > 0:
+            return path
+    return None
 
 
 def is_url(value: str | None) -> bool:
@@ -22,7 +37,13 @@ def _js_runtimes() -> dict:
     return runtimes
 
 
-def _ydl_opts(dest_dir: Path, fmt: str, clients: list[str], merge: str | None) -> dict:
+def _ydl_opts(
+    dest_dir: Path,
+    fmt: str,
+    clients: list[str],
+    merge: str | None,
+    cookies: Path | None,
+) -> dict:
     opts = {
         "format": fmt,
         "outtmpl": str(dest_dir / "%(id)s.%(ext)s"),
@@ -38,6 +59,9 @@ def _ydl_opts(dest_dir: Path, fmt: str, clients: list[str], merge: str | None) -
     }
     if merge:
         opts["merge_output_format"] = merge
+    if cookies:
+        opts["cookiefile"] = str(cookies)
+        print(f"yt-dlp cookies: {cookies}")
     runtimes = _js_runtimes()
     if runtimes:
         opts["js_runtimes"] = runtimes
@@ -70,13 +94,18 @@ def _resolve_downloaded(info: dict, ydl, dest_dir: Path) -> Path | None:
     return extras[-1] if extras else None
 
 
-def download_media_url(url: str, dest_dir: str | Path) -> Path:
+def download_media_url(
+    url: str,
+    dest_dir: str | Path,
+    cookies: str | Path | None = None,
+) -> Path:
     url = url.strip()
     if not is_url(url):
         raise ValueError(f"Not a valid URL: {url}")
 
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
+    cookie_path = resolve_cookies(cookies)
 
     try:
         import yt_dlp
@@ -92,7 +121,7 @@ def download_media_url(url: str, dest_dir: str | Path) -> Path:
 
     errors: list[str] = []
     for fmt, clients, merge in attempts:
-        opts = _ydl_opts(dest_dir, fmt, clients, merge)
+        opts = _ydl_opts(dest_dir, fmt, clients, merge, cookie_path)
         print(f"yt-dlp format={fmt} clients={clients}")
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -106,7 +135,14 @@ def download_media_url(url: str, dest_dir: str | Path) -> Path:
             errors.append(f"{fmt} / {clients}: {exc}")
             print(f"yt-dlp attempt failed: {exc}")
 
+    hint = ""
+    joined = "\n".join(errors)
+    if "not a bot" in joined.lower() or "cookies" in joined.lower():
+        hint = (
+            " YouTube blocked this Colab IP. Export your YouTube cookies "
+            "(Netscape cookies.txt) and pass --cookies / upload cookies.txt. "
+            "https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
+        )
     raise RuntimeError(
-        "Download failed after retries. Update yt-dlp (`pip install -U yt-dlp`) "
-        "and install node or deno for YouTube JS. Last errors:\n" + "\n".join(errors)
+        "Download failed after retries." + hint + "\n" + joined
     )

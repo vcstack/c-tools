@@ -66,6 +66,7 @@ def run_job(
     language,
     min_speakers,
     max_speakers,
+    cookies_file=None,
     use_sample=False,
 ):
     if not PY.is_file():
@@ -108,6 +109,9 @@ def run_job(
     lang = (language or "").strip()
     if lang:
         cmd.extend(["--language", lang])
+    cookies = _as_path(cookies_file)
+    if cookies:
+        cmd.extend(["--cookies", str(cookies)])
 
     print(" ".join(cmd), flush=True)
     code = subprocess.call(cmd, env=env, cwd=str(ROOT))
@@ -139,7 +143,10 @@ def build_ui():
     with gr.Blocks(title="C-tool") as demo:
         gr.Markdown(
             "# C-tool\n"
-            "Video / audio URL → whisper-jax + pyannote → JSON"
+            "Video / audio URL → whisper-jax + pyannote → JSON\n\n"
+            "Colab IP hay bị YouTube hỏi login. Export cookies.txt "
+            "([hướng dẫn yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)) "
+            "rồi upload ở ô cookies."
         )
         with gr.Row():
             with gr.Column(scale=1):
@@ -159,6 +166,10 @@ def build_ui():
                         ".m4a",
                         ".flac",
                     ],
+                )
+                cookies = gr.File(
+                    label="YouTube cookies.txt (cần khi Colab bị chặn bot)",
+                    file_types=[".txt"],
                 )
                 hf_token = gr.Textbox(label="Hugging Face token", type="password")
                 model = gr.Dropdown(
@@ -197,6 +208,7 @@ def build_ui():
                 language,
                 min_speakers,
                 max_speakers,
+                cookies,
             ],
             outputs=outputs,
         )

@@ -43,13 +43,14 @@ def _as_local_path(media_file) -> Path | None:
     return path if path.is_file() else None
 
 
-def _media_path(media_url, media_file, use_sample: bool) -> Path:
+def _media_path(media_url, media_file, use_sample: bool, cookies=None) -> Path:
     if use_sample:
         return _ensure_sample()
     url = (media_url or "").strip()
     if is_url(url):
         print(f"Downloading: {url}")
-        return download_media_url(url, ROOT / "input")
+        cookie_path = _as_local_path(cookies)
+        return download_media_url(url, ROOT / "input", cookies=cookie_path)
     local = _as_local_path(media_file)
     if local:
         return local
@@ -67,9 +68,10 @@ def run_job(
     max_speakers,
     batch_size,
     device,
+    cookies_file=None,
 ):
     try:
-        input_path = _media_path(media_url, media_file, bool(use_sample))
+        input_path = _media_path(media_url, media_file, bool(use_sample), cookies_file)
     except ValueError as exc:
         return str(exc), "", None, None
 
@@ -146,6 +148,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                     "Hoặc upload file (không bắt buộc)",
                     file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
                 )
+                cookies = _gr_file("YouTube cookies.txt (nếu bị chặn bot)", file_types=[".txt"])
                 use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
                 hf_token = gr.Textbox(
                     label="Hugging Face token",
@@ -194,6 +197,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 max_speakers,
                 batch_size,
                 device,
+                cookies,
             ],
             outputs=outputs,
         )
