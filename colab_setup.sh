@@ -8,6 +8,7 @@ uv python install 3.10
 uv venv /content/ctool-venv --python 3.10 --clear
 PY=/content/ctool-venv/bin/python
 
+apt-get install -y -qq nodejs >/dev/null 2>&1 || true
 uv pip install --python "$PY" setuptools wheel pip
 # pyannote 3.1 still uses np.NaN (removed in NumPy 2)
 uv pip install --python "$PY" \
@@ -33,6 +34,7 @@ uv pip install --python "$PY" \
 uv pip install --python "$PY" "pyannote.audio==3.1.1"
 # pyannote may pull newer hub / numpy; pin back
 uv pip install --python "$PY" "huggingface-hub==0.17.3" "numpy>=1.26.4,<2"
+uv pip install --python "$PY" -U yt-dlp
 
 # JAX 0.4.26 wants cuDNN 8.9; Torch 2.5 ships cuDNN 9. Keep 8.9 out of the venv.
 if [ ! -f /content/cudnn89/nvidia/cudnn/lib/libcudnn.so.8 ]; then
