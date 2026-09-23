@@ -30,6 +30,19 @@ def _ensure_sample() -> Path:
     return SAMPLE_PATH
 
 
+def _as_local_path(media_file) -> Path | None:
+    if media_file is None:
+        return None
+    if isinstance(media_file, dict):
+        media_file = media_file.get("name") or media_file.get("path")
+    elif not isinstance(media_file, (str, Path)):
+        media_file = getattr(media_file, "name", None)
+    if not media_file:
+        return None
+    path = Path(media_file)
+    return path if path.is_file() else None
+
+
 def _media_path(media_url, media_file, use_sample: bool) -> Path:
     if use_sample:
         return _ensure_sample()
@@ -37,8 +50,9 @@ def _media_path(media_url, media_file, use_sample: bool) -> Path:
     if is_url(url):
         print(f"Downloading: {url}")
         return download_media_url(url, ROOT / "input")
-    if media_file:
-        return Path(media_file)
+    local = _as_local_path(media_file)
+    if local:
+        return local
     raise ValueError("Paste a video/audio URL (YouTube, etc.) or upload a file.")
 
 
@@ -121,7 +135,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                 media = gr.File(
                     label="Hoặc upload file (không bắt buộc)",
                     file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
-                    type="filepath",
+                    type="file",
                 )
                 use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
                 hf_token = gr.Textbox(
