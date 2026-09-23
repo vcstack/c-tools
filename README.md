@@ -25,14 +25,12 @@ HF_TOKEN=your_token_here
 
 ## Google Colab
 
-Mở file [`ASR_Diarization_Colab.ipynb`](./ASR_Diarization_Colab.ipynb) trên Colab:
+Mở [`ASR_Diarization_Colab.ipynb`](./ASR_Diarization_Colab.ipynb) trên Colab. Notebook **clone repo này** (`vcstack/c-tools`), không clone SoniTranslate.
 
 1. Runtime → **GPU (T4)**.
-2. Chạy các cell lần lượt: cài FFmpeg/WhisperX/pyannote → tạo project → dán `HF_TOKEN`.
+2. Chạy các cell: clone `c-tools` + cài WhisperX/pyannote → dán `HF_TOKEN`.
 3. Upload video/audio hoặc dùng mẫu JFK.
 4. Chạy pipeline, tải `result.json`.
-
-Không cài TTS / translation. Accept license pyannote trước khi diarization nhiều speaker.
 
 ## Install
 
@@ -43,7 +41,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-The repo includes a shallow clone of SoniTranslate under `./SoniTranslate` for alignment language maps (`EXTRA_ALIGN`). Keep that folder or clone SoniTranslate beside this project.
+Alignment language maps live in `sonitr_st/align_languages.py`. You do not need a SoniTranslate checkout.
 
 ## Usage
 
@@ -107,8 +105,7 @@ Speaker assignment uses WhisperX `assign_word_speakers` (same as SoniTranslate).
 │   ├── alignment.py
 │   ├── pipeline.py
 │   └── config.py
-├── sonitr_st/          # Vendored SoniTranslate ASR/diarization core
-├── SoniTranslate/      # Upstream clone (alignment language config)
+├── sonitr_st/          # WhisperX + pyannote helpers
 ├── input/
 ├── output/
 ├── .env.example

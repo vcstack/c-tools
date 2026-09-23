@@ -6,7 +6,7 @@
 |--------|--------|------------------|
 | FFmpeg audio extraction | `soni_translate/preprocessor.py` (`audio_preprocessor`) | Adapted in `pipeline/audio.py` (same ffmpeg PCM 44.1kHz stereo) |
 | WhisperX ASR | `soni_translate/speech_segmentation.py` (`transcribe_speech`) | Vendored in `sonitr_st/speech_segmentation.py` |
-| Timestamp alignment | `speech_segmentation.py` (`align_speech`) + `language_configuration.py` (`EXTRA_ALIGN`) | Same vendored module + `sonitr_st/align_languages.py` |
+| Timestamp alignment | `speech_segmentation.py` (`align_speech`) + `EXTRA_ALIGN` | Vendored in `sonitr_st/align_languages.py` (no SoniTranslate checkout) |
 | pyannote diarization | `speech_segmentation.py` (`diarize_speech`, `DiarizationPipeline`) | Same vendored module |
 | ASR + diarization merge | `whisperx.assign_word_speakers` via `diarize_speech` | Kept; `pipeline/alignment.py` splits segments on word-level speaker changes |
 | Speaker ID normalization | `reencode_speakers` in `speech_segmentation.py` | Kept |
