@@ -10,3 +10,4 @@ git+https://github.com/sanchit-gandhi/whisper-jax.git
 torch>=2.1.0
 torchaudio>=2.1.0
 pyannote.audio>=3.1.1
+yt-dlp

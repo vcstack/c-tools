@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from pipeline.config import PipelineConfig, resolve_device
+from pipeline.download import download_media_url, is_url
 from pipeline.pipeline import run_pipeline
 
 SAMPLE_URL = "https://github.com/openai/whisper/raw/main/tests/jfk.flac"
@@ -26,15 +27,20 @@ def _ensure_sample() -> Path:
     return SAMPLE_PATH
 
 
-def _media_path(media_file, use_sample: bool) -> Path:
+def _media_path(media_url, media_file, use_sample: bool) -> Path:
     if use_sample:
         return _ensure_sample()
-    if not media_file:
-        raise ValueError("Upload a video/audio file, or enable the sample clip.")
-    return Path(media_file)
+    url = (media_url or "").strip()
+    if is_url(url):
+        print(f"Downloading: {url}")
+        return download_media_url(url, ROOT / "input")
+    if media_file:
+        return Path(media_file)
+    raise ValueError("Paste a video/audio URL (YouTube, etc.) or upload a file.")
 
 
 def run_job(
+    media_url,
     media_file,
     use_sample,
     hf_token,
@@ -46,7 +52,7 @@ def run_job(
     device,
 ):
     try:
-        input_path = _media_path(media_file, bool(use_sample))
+        input_path = _media_path(media_url, media_file, bool(use_sample))
     except ValueError as exc:
         return str(exc), "", None, None
 
@@ -98,18 +104,23 @@ def build_ui():
         gr.Markdown(
             """
 # C-tool
-Video / audio → whisper-jax + pyannote → JSON  
-Transcript stays in the original language. No translation or TTS.
+Video / audio URL → whisper-jax + pyannote → JSON  
+Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
             """
         )
         with gr.Row():
             with gr.Column(scale=1):
+                media_url = gr.Textbox(
+                    label="Media URL",
+                    placeholder="https://www.youtube.com/watch?v=...",
+                    lines=1,
+                )
                 media = gr.File(
-                    label="Video / audio",
+                    label="Hoặc upload file (không bắt buộc)",
                     file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
                     type="filepath",
                 )
-                use_sample = gr.Checkbox(label="Use sample clip (JFK, English)", value=False)
+                use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
                 hf_token = gr.Textbox(
                     label="Hugging Face token",
                     type="password",
@@ -144,6 +155,7 @@ Transcript stays in the original language. No translation or TTS.
         run_btn.click(
             run_job,
             inputs=[
+                media_url,
                 media,
                 use_sample,
                 hf_token,

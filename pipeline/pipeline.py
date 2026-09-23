@@ -11,6 +11,7 @@ from .alignment import build_json_payload
 from .audio import extract_audio, get_duration_seconds, probe_duration_ffprobe, validate_input
 from .config import PipelineConfig, resolve_compute_type, resolve_device, resolve_hf_token
 from .diarization import run_diarization
+from .download import download_media_url, is_url
 from .transcription import run_transcription
 
 
@@ -20,6 +21,10 @@ def _step(n: int, total: int, message: str) -> None:
 
 def run_pipeline(input_path: str | Path, output_path: str | Path, config: PipelineConfig) -> dict:
     total_steps = 5
+    raw = str(input_path).strip()
+    if is_url(raw):
+        print("Downloading URL...")
+        input_path = download_media_url(raw, Path("input"))
     input_path = validate_input(input_path)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

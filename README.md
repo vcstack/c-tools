@@ -3,7 +3,9 @@
 Video/audio → transcript + speaker labels → JSON.
 
 ```text
-Video / Audio
+URL hoặc file
+      ↓
+yt-dlp (nếu URL)
       ↓
 Extract audio (FFmpeg)
       ↓
@@ -41,7 +43,7 @@ Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab. It clones [vcstack/c-t
 
 1. Runtime → **GPU (T4)**.
 2. Run the install cell, then the UI cell.
-3. Upload media (or tick the sample), set model / speakers, click **Run**.
+3. Paste a YouTube/media URL (or upload a file), set model / speakers, click **Run**.
 4. Download JSON from the UI.
 
 ```bash

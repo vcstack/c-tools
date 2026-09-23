@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="C-tool: extract speech transcript with speaker labels."
     )
-    parser.add_argument("--input", "-i", required=True, help="Input video or audio file")
+    parser.add_argument("--input", "-i", required=True, help="Local file path or media URL")
     parser.add_argument("--output", "-o", required=True, help="Output JSON path")
     parser.add_argument(
         "--model",

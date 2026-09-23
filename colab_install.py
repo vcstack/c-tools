@@ -15,7 +15,7 @@ def pip_install(*args: str) -> None:
 
 def main() -> None:
     pip_install("pip", "setuptools", "wheel")
-    pip_install("python-dotenv", "soundfile", "gradio")
+    pip_install("python-dotenv", "soundfile", "gradio", "yt-dlp")
     pip_install("jax[cuda12]")
     pip_install("git+https://github.com/sanchit-gandhi/whisper-jax.git")
     pip_install("torch", "torchaudio")
