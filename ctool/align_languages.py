@@ -1,4 +1,4 @@
-"""WhisperX extra alignment models (vendored from SoniTranslate, MIT)."""
+"""WhisperX extra alignment model IDs used by C-tool."""
 
 INVERTED_LANGUAGES = {
     "ar": "Arabic (ar)",

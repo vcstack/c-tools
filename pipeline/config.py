@@ -34,7 +34,7 @@ def resolve_device(device: str | None = None) -> str:
         chosen = "cuda"
     else:
         chosen = "cpu"
-    os.environ["SONITR_DEVICE"] = chosen
+    os.environ["CTOOL_DEVICE"] = chosen
     return chosen
 
 

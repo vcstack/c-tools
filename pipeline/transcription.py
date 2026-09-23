@@ -1,9 +1,9 @@
-"""Speech-to-text via SoniTranslate WhisperX integration."""
+"""Speech-to-text via WhisperX."""
 
 from __future__ import annotations
 
-from sonitr_st.logging_setup import configure_logging_libs, logger
-from sonitr_st.speech_segmentation import align_speech, transcribe_speech
+from ctool.logging_setup import configure_logging_libs, logger
+from ctool.speech_segmentation import align_speech, transcribe_speech
 
 configure_logging_libs()
 

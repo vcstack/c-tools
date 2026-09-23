@@ -11,7 +11,7 @@ from pathlib import Path
 
 import soundfile as sf
 
-from sonitr_st.media_utils import run_command
+from ctool.media_utils import run_command
 
 VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".mpeg", ".mpg", ".wmv", ".flv"}
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".opus", ".wma", ".aiff", ".aif"}
@@ -44,7 +44,7 @@ def get_duration_seconds(audio_path: str | Path) -> float:
 
 
 def extract_audio(input_path: str | Path, output_wav: str | Path) -> Path:
-    """Extract/normalize to 44.1kHz stereo PCM WAV (SoniTranslate preprocessor style)."""
+    """Extract/normalize to 44.1kHz stereo PCM WAV."""
     input_path = Path(input_path)
     output_wav = Path(output_wav)
     output_wav.parent.mkdir(parents=True, exist_ok=True)

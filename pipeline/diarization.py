@@ -1,8 +1,8 @@
-"""Speaker diarization via SoniTranslate pyannote / WhisperX integration."""
+"""Speaker diarization via pyannote / WhisperX."""
 
 from __future__ import annotations
 
-from sonitr_st.speech_segmentation import diarization_models, diarize_speech
+from ctool.speech_segmentation import diarization_models, diarize_speech
 
 
 def run_diarization(

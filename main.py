@@ -18,7 +18,7 @@ from pipeline.pipeline import run_pipeline  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Extract speech transcript with speaker labels (no translation/TTS)."
+        description="C-tool: extract speech transcript with speaker labels."
     )
     parser.add_argument("--input", "-i", required=True, help="Input video or audio file")
     parser.add_argument("--output", "-o", required=True, help="Output JSON path")

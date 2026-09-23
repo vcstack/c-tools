@@ -1,7 +1,6 @@
 .venv/
 .env
 .cache/
-SoniTranslate/
 __pycache__/
 *.pyc
 WHISPER_MODELS/

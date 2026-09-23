@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sonitr_st.logging_setup import logger
+from ctool.logging_setup import logger
 
 from .alignment import build_json_payload
 from .audio import extract_audio, get_duration_seconds, probe_duration_ffprobe, validate_input

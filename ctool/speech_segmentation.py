@@ -228,7 +228,7 @@ def transcribe_speech(
 
     model = whisperx.load_model(
         asr_model,
-        os.environ.get("SONITR_DEVICE"),
+        os.environ.get("CTOOL_DEVICE"),
         compute_type=compute_type,
         language=SOURCE_LANGUAGE,
         asr_options=asr_options,
@@ -301,7 +301,7 @@ def align_speech(audio, result):
 
     model_a, metadata = whisperx.load_align_model(
         language_code=result["language"],
-        device=os.environ.get("SONITR_DEVICE"),
+        device=os.environ.get("CTOOL_DEVICE"),
         model_name=None
         if result["language"] in DAMHF.keys()
         else EXTRA_ALIGN[result["language"]],
@@ -311,7 +311,7 @@ def align_speech(audio, result):
         model_a,
         metadata,
         audio,
-        os.environ.get("SONITR_DEVICE"),
+        os.environ.get("CTOOL_DEVICE"),
         return_char_alignments=True,
         print_progress=False,
     )
@@ -390,7 +390,7 @@ def diarize_speech(
             diarize_model = whisperx.DiarizationPipeline(
                 model_name=model_name,
                 use_auth_token=YOUR_HF_TOKEN,
-                device=os.environ.get("SONITR_DEVICE"),
+                device=os.environ.get("CTOOL_DEVICE"),
             )
 
         except Exception as error:

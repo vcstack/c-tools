@@ -1,23 +1,35 @@
-# SoniTranslate ASR + Diarization (JSON only)
+# C-tool
 
-Standalone pipeline derived from [SoniTranslate](https://github.com/R3gm/SoniTranslate). It runs **speech-to-text**, **WhisperX alignment**, **pyannote speaker diarization**, and writes a merged **JSON** file. There is **no** translation, TTS, voice cloning, or dubbing.
+Video/audio → transcript + speaker labels → JSON.
 
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for which SoniTranslate modules were reused.
+```text
+Video / Audio
+      ↓
+Extract audio (FFmpeg)
+      ↓
+Speech-to-Text (WhisperX)
+      ↓
+Speaker diarization (pyannote)
+      ↓
+JSON
+```
+
+No translation, TTS, voice cloning, or video rendering.
 
 ## Prerequisites
 
 1. **Python 3.10+**
-2. **FFmpeg** on your `PATH` (`ffmpeg -version`)
-3. **PyTorch** matching your machine (CPU or CUDA). Install from [pytorch.org](https://pytorch.org/) if the default `pip install torch` wheel is not suitable.
-4. **Hugging Face token** for pyannote diarization (when `max_speakers > 1`)
+2. **FFmpeg** on your `PATH`
+3. **PyTorch** (CPU or CUDA) from [pytorch.org](https://pytorch.org/)
+4. **Hugging Face token** when `max_speakers > 1`
 
-### Hugging Face / pyannote setup
+### Hugging Face / pyannote
 
 1. Create a token at [https://hf.co/settings/tokens](https://hf.co/settings/tokens)
-2. Accept the user conditions for:
+2. Accept:
    - [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
    - [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-3. Copy `.env.example` to `.env` and set:
+3. Copy `.env.example` to `.env`:
 
 ```env
 HF_TOKEN=your_token_here
@@ -25,31 +37,26 @@ HF_TOKEN=your_token_here
 
 ## Google Colab
 
-Mở [`ASR_Diarization_Colab.ipynb`](./ASR_Diarization_Colab.ipynb) trên Colab. Notebook **clone repo này** (`vcstack/c-tools`), không clone SoniTranslate.
+Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab. It clones [vcstack/c-tools](https://github.com/vcstack/c-tools).
 
 1. Runtime → **GPU (T4)**.
-2. Chạy các cell: clone `c-tools` + cài WhisperX/pyannote → dán `HF_TOKEN`.
-3. Upload video/audio hoặc dùng mẫu JFK.
-4. Chạy pipeline, tải `result.json`.
+2. Run cells: clone C-tool + install WhisperX/pyannote → paste `HF_TOKEN`.
+3. Upload media or use the sample clip.
+4. Run the pipeline and download `result.json`.
 
 ## Install
 
 ```bash
-cd d:\C-Tools
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
-
-Alignment language maps live in `sonitr_st/align_languages.py`. You do not need a SoniTranslate checkout.
 
 ## Usage
 
 ```bash
 python main.py --input ./input/video.mp4 --output ./output/result.json
 ```
-
-Optional:
 
 ```bash
 python main.py \
@@ -59,13 +66,13 @@ python main.py \
   --device auto
 ```
 
-Fast local test (CPU, small model, single speaker — no HF token):
+Quick test (single speaker, no HF token):
 
 ```bash
 python main.py --input ./input/test.wav --output ./output/result.json --model tiny --max-speakers 1
 ```
 
-### CLI options
+### CLI
 
 | Flag | Description |
 |------|-------------|
@@ -92,7 +99,7 @@ python main.py --input ./input/test.wav --output ./output/result.json --model ti
 }
 ```
 
-Speaker assignment uses WhisperX `assign_word_speakers` (same as SoniTranslate). When word-level speaker tags exist, segments are split on speaker changes before export.
+Transcript stays in the original spoken language. Speakers come from diarization. Word-level labels split a segment when the speaker changes.
 
 ## Project layout
 
@@ -105,7 +112,7 @@ Speaker assignment uses WhisperX `assign_word_speakers` (same as SoniTranslate).
 │   ├── alignment.py
 │   ├── pipeline.py
 │   └── config.py
-├── sonitr_st/          # WhisperX + pyannote helpers
+├── ctool/
 ├── input/
 ├── output/
 ├── .env.example
@@ -114,4 +121,4 @@ Speaker assignment uses WhisperX `assign_word_speakers` (same as SoniTranslate).
 
 ## License
 
-SoniTranslate is MIT-licensed; pyannote and Whisper models have their own terms on Hugging Face.
+pyannote and Whisper models have their own terms on Hugging Face.
