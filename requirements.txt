@@ -6,8 +6,14 @@ soundfile>=0.12.1
 python-dotenv>=1.0.0
 gradio>=4.44.0
 
-# ASR + alignment + diarization
+# ASR + alignment + diarization (install pyannote fork before whisperX)
 ctranslate2<=4.4.0
 transformers<=4.39.3
+faster-whisper==1.0.2
+pandas
+nltk
+speechbrain==0.5.16
 git+https://github.com/R3gm/pyannote-audio.git@3.1.1
+# whisperX setup.py pins PyPI pyannote — use --no-deps when installing manually:
+# pip install git+https://github.com/R3gm/whisperX.git@cuda_12_x --no-deps
 git+https://github.com/R3gm/whisperX.git@cuda_12_x
