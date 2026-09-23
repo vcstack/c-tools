@@ -35,21 +35,30 @@ class PipelineConfig:
     work_dir: str = ".cache/pipeline"
 
 
+def _jax_backend() -> str | None:
+    try:
+        import jax
+
+        devices = jax.devices()
+        if any(d.platform == "tpu" for d in devices):
+            return "tpu"
+        if any(d.platform == "gpu" for d in devices):
+            return "cuda"
+        return "cpu"
+    except Exception:
+        return None
+
+
+def resolve_torch_device() -> str:
+    return "cuda" if _cuda_available() else "cpu"
+
+
 def resolve_device(device: str | None = None) -> str:
+    # whisper-jax follows JAX, not torch.cuda (Colab often has Torch CUDA + no cuDNN 8).
     if device and device != "auto":
         chosen = device
     else:
-        try:
-            import jax
-
-            if any(d.platform == "tpu" for d in jax.devices()):
-                chosen = "tpu"
-            elif _cuda_available() or any(d.platform == "gpu" for d in jax.devices()):
-                chosen = "cuda"
-            else:
-                chosen = "cpu"
-        except Exception:
-            chosen = "cuda" if _cuda_available() else "cpu"
+        chosen = _jax_backend() or "cpu"
     os.environ["CTOOL_DEVICE"] = chosen
     return chosen
 

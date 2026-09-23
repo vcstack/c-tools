@@ -13,12 +13,25 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import urllib.request
 from pathlib import Path
+
+os.environ["MPLBACKEND"] = "Agg"
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+except Exception:
+    pass
 
 ROOT = Path("/content/c-tools")
 if not ROOT.is_dir():
     ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from ctool.runtime_env import pipeline_env  # noqa: E402
+
 PY = Path("/content/ctool-venv/bin/python")
 OUT = ROOT / "output" / "result.json"
 SAMPLE_URL = "https://github.com/openai/whisper/raw/main/tests/jfk.flac"
@@ -71,11 +84,10 @@ def run_job(
             return "Dán Media URL (YouTube, ...) hoặc upload file. Hoặc bấm Test.", "", None, None
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
+    env = pipeline_env(os.environ.copy())
     token = (hf_token or "").strip()
     env["HF_TOKEN"] = token
     env["HUGGING_FACE_HUB_TOKEN"] = token
-    env["MPLBACKEND"] = "Agg"
 
     cmd = [
         str(PY),

@@ -34,13 +34,25 @@ uv pip install --python "$PY" "pyannote.audio==3.1.1"
 # pyannote may pull newer hub / numpy; pin back
 uv pip install --python "$PY" "huggingface-hub==0.17.3" "numpy>=1.26.4,<2"
 
+# JAX 0.4.26 wants cuDNN 8.9; Torch 2.5 ships cuDNN 9. Keep 8.9 out of the venv.
+if [ ! -f /content/cudnn89/nvidia/cudnn/lib/libcudnn.so.8 ]; then
+  uv pip install --python "$PY" --target /content/cudnn89 "nvidia-cudnn-cu12==8.9.7.29" || true
+fi
+export LD_LIBRARY_PATH="/content/cudnn89/nvidia/cudnn/lib:${LD_LIBRARY_PATH:-}"
+export MPLBACKEND=Agg
+
 "$PY" - <<'PY'
-import sys
+import os, sys
 print("Python", sys.version)
 import numpy
 print("numpy", numpy.__version__)
-import jax
-print("jax", jax.__version__, "backend", jax.default_backend())
+try:
+    import jax
+    print("jax", jax.__version__, "backend", jax.default_backend())
+except Exception as exc:
+    os.environ["JAX_PLATFORMS"] = "cpu"
+    import jax
+    print("jax", jax.__version__, "backend", jax.default_backend(), "(cpu fallback)", exc)
 import torch
 print("torch", torch.__version__, "cuda", torch.cuda.is_available())
 from whisper_jax import FlaxWhisperPipline  # noqa: F401

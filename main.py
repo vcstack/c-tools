@@ -4,13 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+
+os.environ["MPLBACKEND"] = "Agg"
 
 # Ensure project root is importable when running as script
 _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+from ctool.runtime_env import apply_in_process  # noqa: E402
+
+apply_in_process()
 
 from pipeline.config import PipelineConfig, resolve_device  # noqa: E402
 from pipeline.pipeline import run_pipeline  # noqa: E402

@@ -9,7 +9,13 @@ from ctool.logging_setup import logger
 
 from .alignment import build_json_payload
 from .audio import extract_audio, get_duration_seconds, probe_duration_ffprobe, validate_input
-from .config import PipelineConfig, resolve_compute_type, resolve_device, resolve_hf_token
+from .config import (
+    PipelineConfig,
+    resolve_compute_type,
+    resolve_device,
+    resolve_hf_token,
+    resolve_torch_device,
+)
 from .diarization import run_diarization
 from .download import download_media_url, is_url
 from .transcription import run_transcription
@@ -34,6 +40,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
     wav_path = work_dir / "extracted.wav"
 
     device = resolve_device(config.device)
+    torch_device = resolve_torch_device()
     compute_type = resolve_compute_type(device, config.compute_type)
     hf_token = config.hf_token if config.hf_token is not None else resolve_hf_token()
 
@@ -46,7 +53,10 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
         duration = get_duration_seconds(wav_path)
 
     _step(3, total_steps, "Running speech recognition...")
-    logger.info(f"Device: {device}, ASR: whisper-jax {config.asr_model}, compute: {compute_type}")
+    logger.info(
+        f"ASR device: {device}, diarization: {torch_device}, "
+        f"ASR: whisper-jax {config.asr_model}, compute: {compute_type}"
+    )
     _audio, asr_result = run_transcription(
         str(wav_path),
         asr_model=config.asr_model,
@@ -67,7 +77,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
             min_speakers=config.min_speakers,
             max_speakers=config.max_speakers,
             model_key=config.diarization_model_key,
-            device=device,
+            device=torch_device,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
