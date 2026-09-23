@@ -16,10 +16,11 @@ uv pip install --python "$PY" \
   "transformers==4.34.1" \
   python-dotenv soundfile yt-dlp cached-property
 
+# flax 0.8.5 needs jax>=0.4.27; whisper-jax stays on JAX 0.4.26 + flax 0.8.4
 uv pip install --python "$PY" \
   --extra-index-url https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
-  "jax[cuda12_pip]==0.4.26" "flax==0.8.5" \
-  || uv pip install --python "$PY" "jax==0.4.26" "jaxlib==0.4.26" "flax==0.8.5"
+  "jax[cuda12_pip]==0.4.26" "jaxlib==0.4.26" "flax==0.8.4" \
+  || uv pip install --python "$PY" "jax==0.4.26" "jaxlib==0.4.26" "flax==0.8.4"
 
 uv pip install --python "$PY" "git+https://github.com/sanchit-gandhi/whisper-jax.git"
 uv pip install --python "$PY" \
