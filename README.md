@@ -39,17 +39,12 @@ HF_TOKEN=your_token_here
 
 ## Google Colab
 
-Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab. It clones [vcstack/c-tools](https://github.com/vcstack/c-tools) and starts a Gradio UI.
+Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab (GPU T4).
 
-1. Runtime → **GPU (T4)**.
-2. Run the install cell, then the UI cell.
-3. Paste a YouTube/media URL (or upload a file), set model / speakers, click **Run**.
-4. Download JSON from the UI.
+1. Run **Reset + cài** — creates Python 3.10 venv (whisper-jax cannot use Colab 3.13).
+2. Run **Chạy C-tool** — paste a media URL, set token/model, run. JSON downloads in the notebook.
 
-```bash
-pip install gradio
-python app.py
-```
+No Gradio on Colab (avoids FastAPI/Pydantic/Jinja conflicts). Local optional UI: `python app.py`.
 
 ## Install
 
