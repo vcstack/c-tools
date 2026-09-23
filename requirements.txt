@@ -1,4 +1,4 @@
-numpy<2.3
+numpy>=1.26.4,<2
 soundfile>=0.12.1
 python-dotenv>=1.0.0
 # Optional local UI only: pip install gradio==3.50.2
