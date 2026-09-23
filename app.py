@@ -114,6 +114,16 @@ def run_job(
     return status, pretty, rows, str(output_path)
 
 
+def _gr_file(label: str, **kwargs):
+    import gradio as gr
+
+    kwargs.pop("type", None)
+    try:
+        return gr.File(label=label, type="file", **kwargs)
+    except (ValueError, TypeError):
+        return gr.File(label=label, **kwargs)
+
+
 def build_ui():
     import gradio as gr
 
@@ -132,10 +142,9 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                     placeholder="https://www.youtube.com/watch?v=...",
                     lines=1,
                 )
-                media = gr.File(
-                    label="Hoặc upload file (không bắt buộc)",
+                media = _gr_file(
+                    "Hoặc upload file (không bắt buộc)",
                     file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
-                    type="file",
                 )
                 use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
                 hf_token = gr.Textbox(
@@ -167,7 +176,7 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
                     wrap=True,
                 )
                 json_out = gr.Code(label="JSON", language="json")
-                download = gr.File(label="Download result.json")
+                download = _gr_file("Download result.json")
 
         run_btn.click(
             run_job,
@@ -189,6 +198,15 @@ Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
 
 
 def launch_ui(share: bool = True, server_name: str = "0.0.0.0"):
+    import subprocess
+
+    try:
+        rev = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT), text=True
+        ).strip()
+        print(f"C-tool commit: {rev}")
+    except Exception:
+        print("C-tool commit: unknown")
     demo = build_ui()
     demo.queue()
     try:
