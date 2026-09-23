@@ -23,7 +23,8 @@ uv pip install --python "$PY" \
 uv pip install --python "$PY" "git+https://github.com/sanchit-gandhi/whisper-jax.git"
 uv pip install --python "$PY" \
   torch==2.5.1 torchaudio==2.5.1 \
-  --index-url https://download.pytorch.org/whl/cu124
+  --index-url https://download.pytorch.org/whl/cu124 \
+  || uv pip install --python "$PY" torch torchaudio
 uv pip install --python "$PY" "pyannote.audio==3.1.1" "huggingface-hub>=0.16.4,<0.18"
 
-"$PY" -c "import sys; from whisper_jax import FlaxWhisperPipline; print(sys.version); print('whisper-jax OK')"
+"$PY" -c "import sys, torch; from whisper_jax import FlaxWhisperPipline; print(sys.version); print('torch', torch.__version__); print('whisper-jax OK')"

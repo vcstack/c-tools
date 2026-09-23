@@ -5,8 +5,16 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-import torch
 from dotenv import load_dotenv
+
+
+def _cuda_available() -> bool:
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
 
 load_dotenv()
 
@@ -36,12 +44,12 @@ def resolve_device(device: str | None = None) -> str:
 
             if any(d.platform == "tpu" for d in jax.devices()):
                 chosen = "tpu"
-            elif torch.cuda.is_available() or any(d.platform == "gpu" for d in jax.devices()):
+            elif _cuda_available() or any(d.platform == "gpu" for d in jax.devices()):
                 chosen = "cuda"
             else:
                 chosen = "cpu"
         except Exception:
-            chosen = "cuda" if torch.cuda.is_available() else "cpu"
+            chosen = "cuda" if _cuda_available() else "cpu"
     os.environ["CTOOL_DEVICE"] = chosen
     return chosen
 
