@@ -41,7 +41,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
         duration = get_duration_seconds(wav_path)
 
     _step(3, total_steps, "Running speech recognition...")
-    logger.info(f"Device: {device}, ASR model: {config.asr_model}, compute: {compute_type}")
+    logger.info(f"Device: {device}, ASR: whisper-jax {config.asr_model}, compute: {compute_type}")
     _audio, asr_result = run_transcription(
         str(wav_path),
         asr_model=config.asr_model,
@@ -50,6 +50,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
         source_language=config.source_language,
         literalize_numbers=config.literalize_numbers,
         segment_duration_limit=config.segment_duration_limit,
+        device=device,
     )
 
     _step(4, total_steps, "Running speaker diarization...")
@@ -61,6 +62,7 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
             min_speakers=config.min_speakers,
             max_speakers=config.max_speakers,
             model_key=config.diarization_model_key,
+            device=device,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc

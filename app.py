@@ -98,7 +98,7 @@ def build_ui():
         gr.Markdown(
             """
 # C-tool
-Video / audio → WhisperX + pyannote → JSON  
+Video / audio → whisper-jax + pyannote → JSON  
 Transcript stays in the original language. No translation or TTS.
             """
         )
@@ -117,8 +117,8 @@ Transcript stays in the original language. No translation or TTS.
                 )
                 model = gr.Dropdown(
                     ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
-                    value="large-v3",
-                    label="Whisper model",
+                    value="large-v2",
+                    label="whisper-jax model",
                 )
                 language = gr.Textbox(
                     label="Language code",
@@ -129,7 +129,7 @@ Transcript stays in the original language. No translation or TTS.
                     max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
                 with gr.Row():
                     batch_size = gr.Number(label="Batch size", value=8, precision=0)
-                    device = gr.Dropdown(["auto", "cuda", "cpu"], value="auto", label="Device")
+                    device = gr.Dropdown(["auto", "cuda", "cpu", "tpu"], value="auto", label="Device")
                 run_btn = gr.Button("Run", variant="primary")
             with gr.Column(scale=2):
                 status = gr.Textbox(label="Status", lines=2)

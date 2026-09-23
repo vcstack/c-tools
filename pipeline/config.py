@@ -13,7 +13,7 @@ load_dotenv()
 
 @dataclass
 class PipelineConfig:
-    asr_model: str = "large-v3"
+    asr_model: str = "large-v2"
     compute_type: str = "default"
     batch_size: int = 8
     segment_duration_limit: int = 15
@@ -30,10 +30,18 @@ class PipelineConfig:
 def resolve_device(device: str | None = None) -> str:
     if device and device != "auto":
         chosen = device
-    elif torch.cuda.is_available():
-        chosen = "cuda"
     else:
-        chosen = "cpu"
+        try:
+            import jax
+
+            if any(d.platform == "tpu" for d in jax.devices()):
+                chosen = "tpu"
+            elif torch.cuda.is_available() or any(d.platform == "gpu" for d in jax.devices()):
+                chosen = "cuda"
+            else:
+                chosen = "cpu"
+        except Exception:
+            chosen = "cuda" if torch.cuda.is_available() else "cpu"
     os.environ["CTOOL_DEVICE"] = chosen
     return chosen
 
@@ -48,6 +56,8 @@ def resolve_hf_token() -> str | None:
 def resolve_compute_type(device: str, compute_type: str) -> str:
     if compute_type != "default":
         return compute_type
+    if device == "tpu":
+        return "bfloat16"
     if device == "cuda":
         return "float16"
-    return "int8"
+    return "float32"

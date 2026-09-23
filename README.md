@@ -7,7 +7,7 @@ Video / Audio
       ↓
 Extract audio (FFmpeg)
       ↓
-Speech-to-Text (WhisperX)
+Speech-to-Text (whisper-jax)
       ↓
 Speaker diarization (pyannote)
       ↓
@@ -20,7 +20,7 @@ No translation, TTS, voice cloning, or video rendering.
 
 1. **Python 3.10+**
 2. **FFmpeg** on your `PATH`
-3. **PyTorch** (CPU or CUDA) from [pytorch.org](https://pytorch.org/)
+3. **JAX** (`pip install -U "jax[cuda12]"` on GPU) then whisper-jax
 4. **Hugging Face token** when `max_speakers > 1`
 
 ### Hugging Face / pyannote
@@ -67,7 +67,7 @@ python main.py --input ./input/video.mp4 --output ./output/result.json
 python main.py \
   --input ./input/video.mp4 \
   --output ./output/result.json \
-  --model large-v3 \
+  --model large-v2 \
   --device auto
 ```
 
@@ -81,8 +81,8 @@ python main.py --input ./input/test.wav --output ./output/result.json --model ti
 
 | Flag | Description |
 |------|-------------|
-| `--model` | Whisper model (`tiny`, `base`, `large-v3`, …) |
-| `--device` | `auto`, `cuda`, or `cpu` |
+| `--model` | whisper-jax (`tiny`, `base`, `large-v2`, …) |
+| `--device` | `auto`, `cuda`, `cpu`, or `tpu` |
 | `--language` | ISO language code (optional) |
 | `--min-speakers` / `--max-speakers` | Diarization bounds |
 | `--diarization-model` | `pyannote_3.1` (default), `pyannote_2.1`, or `disable` |
@@ -104,7 +104,7 @@ python main.py --input ./input/test.wav --output ./output/result.json --model ti
 }
 ```
 
-Transcript stays in the original spoken language. Speakers come from diarization. Word-level labels split a segment when the speaker changes.
+Transcript stays in the original language (`task=transcribe`). Speakers come from pyannote. A segment that overlaps two speakers gets the speaker with more overlap.
 
 ## Project layout
 

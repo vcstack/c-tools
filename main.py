@@ -24,13 +24,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", "-o", required=True, help="Output JSON path")
     parser.add_argument(
         "--model",
-        default="large-v3",
-        help="Whisper ASR model (default: large-v3). Use tiny/base for faster tests.",
+        default="large-v2",
+        help="whisper-jax model (tiny/base/small/medium/large-v2/large-v3).",
     )
     parser.add_argument(
         "--device",
         default="auto",
-        choices=["auto", "cuda", "cpu"],
+        choices=["auto", "cuda", "cpu", "tpu"],
         help="Compute device (default: auto)",
     )
     parser.add_argument(
@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--compute-type",
         default="default",
-        help="Whisper compute type (default: float16 on GPU, int8 on CPU)",
+        help="JAX dtype: default / float16 / bfloat16 / float32",
     )
     parser.add_argument(
         "--work-dir",

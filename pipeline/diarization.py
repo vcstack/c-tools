@@ -1,8 +1,9 @@
-"""Speaker diarization via pyannote / WhisperX."""
+"""Speaker diarization via pyannote + overlap merge."""
 
 from __future__ import annotations
 
-from ctool.speech_segmentation import diarization_models, diarize_speech
+from ctool.diarize import DIARIZATION_MODELS, run_pyannote
+from pipeline.alignment import merge_transcript_and_speakers
 
 
 def run_diarization(
@@ -13,24 +14,31 @@ def run_diarization(
     min_speakers: int,
     max_speakers: int,
     model_key: str = "pyannote_3.1",
+    device: str = "cpu",
 ):
     """
-    Assign speakers to ASR segments using pyannote + whisperx.assign_word_speakers.
+    Label ASR segments with speakers.
 
-    model_key: pyannote_3.1 | pyannote_2.1 | disable
+    If a transcript segment overlaps multiple speakers, assign the speaker
+    with the largest temporal overlap (deterministic).
     """
-    model_name = diarization_models.get(model_key, diarization_models["pyannote_3.1"])
-    if model_key != "disable" and max(min_speakers, max_speakers) > 1 and not hf_token:
+    model_name = DIARIZATION_MODELS.get(model_key, DIARIZATION_MODELS["pyannote_3.1"])
+    if model_key == "disable" or max(min_speakers, max_speakers) <= 1:
+        labeled = [{**seg, "speaker": "SPEAKER_00"} for seg in asr_result.get("segments", [])]
+        return {"segments": labeled, "language": asr_result.get("language")}
+
+    if not hf_token:
         raise ValueError(
-            "HF_TOKEN is required for pyannote diarization with multiple speakers. "
-            "Set HF_TOKEN in .env or use --max-speakers 1 to skip diarization."
+            "HF_TOKEN is required for pyannote when max_speakers > 1. "
+            "Set HF_TOKEN or use --max-speakers 1."
         )
-    token = hf_token or ""
-    return diarize_speech(
+
+    regions = run_pyannote(
         audio_wav,
-        asr_result,
-        min_speakers,
-        max_speakers,
-        token,
-        model_name,
+        hf_token=hf_token,
+        min_speakers=min_speakers,
+        max_speakers=max_speakers,
+        model_name=model_name,
+        device=device,
     )
+    return merge_transcript_and_speakers(asr_result, regions)

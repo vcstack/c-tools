@@ -5,13 +5,11 @@ Input video/audio
        ↓
 FFmpeg → WAV
        ↓
-WhisperX speech-to-text
-       ↓
-WhisperX timestamp alignment
+whisper-jax (FlaxWhisperPipline, task=transcribe)
        ↓
 pyannote speaker diarization
        ↓
-Merge transcript + speaker + timestamps
+Overlap-merge transcript + speaker
        ↓
 JSON
 ```
@@ -21,18 +19,11 @@ JSON
 | Stage | Code |
 |--------|------|
 | FFmpeg extract | `pipeline/audio.py` |
-| WhisperX ASR | `ctool/speech_segmentation.py` → `pipeline/transcription.py` |
-| Alignment | `ctool/speech_segmentation.py` + `ctool/align_languages.py` |
-| pyannote | `ctool/speech_segmentation.py` → `pipeline/diarization.py` |
-| Merge / JSON | `whisperx.assign_word_speakers` + `pipeline/alignment.py` |
-| Device | `CTOOL_DEVICE` (`cuda` if available, else `cpu`) |
-| Token | `HF_TOKEN` |
+| ASR | `ctool/asr.py` → `pipeline/transcription.py` |
+| pyannote | `ctool/diarize.py` → `pipeline/diarization.py` |
+| Merge | largest timestamp overlap in `pipeline/alignment.py` |
 
-## Merge
-
-1. `whisperx.assign_word_speakers` assigns speakers to words/segments.
-2. If `words[].speaker` changes mid-segment, export splits into sub-segments.
-3. Fallback: segment-level speaker; if needed, largest timestamp overlap.
+whisper-jax has segment timestamps, not word-level alignment. If one ASR segment overlaps two speakers, the speaker with more overlap wins.
 
 ## JSON
 
