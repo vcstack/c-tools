@@ -359,10 +359,9 @@ def _seg_row_updates(job_id, page=0):
                     gr.update(
                         value=f"**{r['id']}** · {r['speaker']} · {r['start']:.1f}s · {r['tts']}"
                     ),
-                    gr.update(value=r["text"], interactive=False),
+                    gr.update(value=r["text"], interactive=not locked),
                     gr.update(choices=row_voices, value=voice, visible=True, interactive=not locked),
                     gr.update(visible=True, interactive=not locked),
-                    gr.update(visible=False),
                     gr.update(visible=True, interactive=not locked),
                     gr.update(visible=True, interactive=not locked),
                 ]
@@ -378,7 +377,6 @@ def _seg_row_updates(job_id, page=0):
                     gr.update(visible=False),
                     gr.update(visible=False),
                     gr.update(visible=False),
-                    gr.update(visible=False),
                 ]
             )
     return tuple(updates)
@@ -386,28 +384,21 @@ def _seg_row_updates(job_id, page=0):
 
 def dash_select_job(job_id, page=0):
     import gradio as gr
-    from ctool.dashboard import job_detail_text, segment_choices
+    from ctool.dashboard import job_detail_text
     from ctool.store import JOB_STATUS_FINAL, get_job
 
     jid = (job_id or "").strip()
-    detail = job_detail_text(jid) if jid else "Chọn job rồi bấm **Mở chi tiết**."
-    choices = segment_choices(jid) if jid else []
+    detail = job_detail_text(jid) if jid else "Chọn job bên trái."
     row = get_job(jid) if jid else None
     locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
-    lock_msg = "Job đã Final — STT/TTS bị khóa." if locked else ""
+    lock_msg = "Job đã Final — STT/TTS/sửa bị khóa." if locked else ""
     btn = gr.update(interactive=not locked)
     return (
         detail,
-        gr.update(choices=choices, value=[]),
         btn,
         btn,
         btn,
-        btn,
-        btn,
-        gr.update(visible=True),
         jid,
-        "",
-        "",
         *_seg_row_updates(jid, page),
         lock_msg,
     )
@@ -884,15 +875,12 @@ _UI_CSS = """
 .gradio-container { max-width: 1180px !important; }
 #dash-detail {
   border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 14px;
-  padding: 12px 14px 6px;
-  background: #f8fafc;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-  margin-top: 8px;
-}
-#tts-map, #stt-main, #dash-table-wrap {
   border-radius: 12px;
+  padding: 8px 10px 4px;
+  background: #f8fafc;
 }
+#dash-jobs .table-wrap { max-height: 420px; overflow: auto; }
+.seg-line textarea { min-height: 42px !important; }
 """
 
 
@@ -1196,102 +1184,88 @@ def build_ui():
                 )
 
             with gr.Tab("Dashboard"):
-                gr.Markdown(
-                    "Chọn job → **Mở chi tiết**. Mỗi câu có **Sửa / Lưu / Gen TTS / Xóa câu**. "
-                    "**Final** khóa STT/TTS/sửa. Xóa job (cả Final) ở hàng nút trên."
-                )
                 dash_job = gr.Textbox(visible=False, value="")
-                dash_utt = gr.Textbox(visible=False, value="")
+                dash_page = gr.State(0)
+                _dash_voices, _ = fetch_voice_catalog(_tts_prefs().get("vieneu_api_key"))
+                _voice0 = _tts_prefs().get("voice_0")
+                if _voice0 not in (_dash_voices or []):
+                    _voice0 = (_dash_voices or ["Ngọc Lan"])[0]
                 with gr.Row():
-                    dash_pick = gr.Dropdown(
-                        choices=_job_ids(),
-                        label="Chọn job",
-                        allow_custom_value=True,
-                        scale=3,
-                    )
-                    dash_open = gr.Button("Mở chi tiết", variant="primary", scale=1)
-                    dash_refresh = gr.Button("Làm mới", scale=1)
-                dash_table = gr.Dataframe(
-                    headers=["job_id", "file", "trạng thái", "segments", "tts_câu", "created"],
-                    label="Jobs (click ô job_id cũng mở được)",
-                    interactive=True,
-                    wrap=True,
-                    elem_id="dash-table-wrap",
-                )
-                with gr.Group(elem_id="dash-detail") as dash_panel:
-                    dash_detail = gr.Markdown("Chọn job rồi bấm **Mở chi tiết**.")
-                    dash_status = gr.Textbox(label="Status", lines=1)
-                    with gr.Row():
-                        dash_stt_btn = gr.Button("Chạy lại STT")
-                        dash_tts_all_btn = gr.Button("Gen TTS toàn bộ")
-                        dash_tts_one_btn = gr.Button("Gen lại câu đang chọn")
-                        dash_final_btn = gr.Button("Final", variant="primary")
-                    with gr.Row():
-                        dash_confirm_del = gr.Checkbox(
-                            label="Xác nhận xóa hết (kể cả Final)",
-                            value=False,
-                            scale=2,
-                        )
-                        dash_delete_btn = gr.Button("Xóa job", variant="stop", scale=1)
-                    dash_utt_label = gr.Markdown("")
-                    dash_page = gr.State(0)
-                    _dash_voices, _ = fetch_voice_catalog(_tts_prefs().get("vieneu_api_key"))
-                    dash_vieneu = gr.Textbox(
-                        label="VieNeu API key (re-TTS)",
-                        type="password",
-                        value=_tts_prefs().get("vieneu_api_key") or "",
-                    )
-                    dash_voice = gr.Dropdown(
-                        choices=_dash_voices or ["Ngọc Lan"],
-                        value=_tts_prefs().get("voice_0")
-                        if _tts_prefs().get("voice_0") in (_dash_voices or [])
-                        else ((_dash_voices or ["Ngọc Lan"])[0]),
-                        label="Giọng mặc định (Gen TTS toàn bộ / chưa chọn trên câu)",
-                        allow_custom_value=True,
-                    )
-                    with gr.Row():
-                        dash_seg_info = gr.Markdown("Chưa có câu.")
-                        dash_prev = gr.Button("← Trước")
-                        dash_next = gr.Button("Sau →")
-                    seg_rows_ui: list = []
-                    seg_uids: list = []
-                    seg_labels: list = []
-                    seg_texts: list = []
-                    seg_voices: list = []
-                    seg_edit_btns: list = []
-                    seg_save_btns: list = []
-                    seg_tts_btns: list = []
-                    seg_del_btns: list = []
-                    for _idx in range(MAX_SEG_ROWS):
-                        with gr.Group(visible=False) as seg_row:
-                            seg_rows_ui.append(seg_row)
-                            with gr.Row():
-                                seg_labels.append(gr.Markdown(""))
-                                seg_uids.append(gr.Textbox(visible=False, value=""))
-                            seg_texts.append(
-                                gr.Textbox(label="Nội dung", lines=2, interactive=False)
+                    with gr.Column(scale=2, min_width=260, elem_id="dash-jobs"):
+                        with gr.Row():
+                            dash_pick = gr.Dropdown(
+                                choices=_job_ids(),
+                                label="Job",
+                                allow_custom_value=True,
+                                scale=3,
                             )
-                            with gr.Row():
+                            dash_refresh = gr.Button("Làm mới", scale=1)
+                        dash_table = gr.Dataframe(
+                            headers=["job", "file", "status", "seg", "tts", "created"],
+                            label="Jobs",
+                            interactive=True,
+                            wrap=True,
+                        )
+                    with gr.Column(scale=5, elem_id="dash-detail"):
+                        dash_detail = gr.Markdown("Chọn job bên trái.")
+                        dash_status = gr.Textbox(show_label=False, lines=1, placeholder="Status")
+                        with gr.Row():
+                            dash_stt_btn = gr.Button("Re-STT")
+                            dash_tts_all_btn = gr.Button("TTS all")
+                            dash_voice = gr.Dropdown(
+                                choices=_dash_voices or ["Ngọc Lan"],
+                                value=_voice0,
+                                label="Giọng all",
+                                allow_custom_value=True,
+                                scale=2,
+                            )
+                            dash_final_btn = gr.Button("Final", variant="primary")
+                            dash_confirm_del = gr.Checkbox(label="Xóa job?", value=False)
+                            dash_delete_btn = gr.Button("Xóa", variant="stop")
+                        with gr.Row():
+                            dash_seg_info = gr.Markdown("Chưa có câu.")
+                            dash_prev = gr.Button("←")
+                            dash_next = gr.Button("→")
+                        seg_rows_ui: list = []
+                        seg_uids: list = []
+                        seg_labels: list = []
+                        seg_texts: list = []
+                        seg_voices: list = []
+                        seg_save_btns: list = []
+                        seg_tts_btns: list = []
+                        seg_del_btns: list = []
+                        for _idx in range(MAX_SEG_ROWS):
+                            with gr.Row(visible=False, elem_classes=["seg-line"]) as seg_row:
+                                seg_rows_ui.append(seg_row)
+                                seg_uids.append(gr.Textbox(visible=False, value=""))
+                                seg_labels.append(gr.Markdown("", elem_classes=["seg-id"]))
+                                seg_texts.append(
+                                    gr.Textbox(
+                                        show_label=False,
+                                        lines=2,
+                                        scale=4,
+                                        placeholder="Nội dung câu",
+                                    )
+                                )
                                 seg_voices.append(
                                     gr.Dropdown(
                                         choices=_dash_voices or ["Ngọc Lan"],
-                                        value=(_dash_voices or ["Ngọc Lan"])[0],
-                                        label="Giọng",
+                                        value=_voice0,
+                                        show_label=False,
                                         allow_custom_value=True,
                                         scale=2,
                                     )
                                 )
-                                seg_edit_btns.append(gr.Button("Sửa", size="sm"))
-                                seg_save_btns.append(gr.Button("Lưu", size="sm", visible=False))
-                                seg_tts_btns.append(gr.Button("Gen TTS", size="sm"))
-                                seg_del_btns.append(gr.Button("Xóa câu", size="sm", variant="stop"))
-                    with gr.Accordion("Nhiều câu / token", open=False):
-                        seg_pick = gr.CheckboxGroup(
-                            choices=[],
-                            label="Nhiều câu (tuỳ chọn)",
-                        )
-                        dash_tts_pick_btn = gr.Button("Gen TTS các câu đã tick")
-                        dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
+                                seg_save_btns.append(gr.Button("Lưu", scale=1))
+                                seg_tts_btns.append(gr.Button("TTS", scale=1))
+                                seg_del_btns.append(gr.Button("Xóa", variant="stop", scale=1))
+                        with gr.Accordion("Token", open=False):
+                            dash_vieneu = gr.Textbox(
+                                label="VieNeu API key",
+                                type="password",
+                                value=_tts_prefs().get("vieneu_api_key") or "",
+                            )
+                            dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
 
                 seg_row_outs = [
                     x
@@ -1302,7 +1276,6 @@ def build_ui():
                         seg_labels[i],
                         seg_texts[i],
                         seg_voices[i],
-                        seg_edit_btns[i],
                         seg_save_btns[i],
                         seg_tts_btns[i],
                         seg_del_btns[i],
@@ -1310,16 +1283,10 @@ def build_ui():
                 ]
                 select_outs = [
                     dash_detail,
-                    seg_pick,
                     dash_stt_btn,
                     dash_tts_all_btn,
-                    dash_tts_pick_btn,
-                    dash_tts_one_btn,
                     dash_final_btn,
-                    dash_panel,
                     dash_job,
-                    dash_utt,
-                    dash_utt_label,
                     dash_seg_info,
                     dash_page,
                     *seg_row_outs,
@@ -1328,16 +1295,10 @@ def build_ui():
                 dash_action_outputs = [
                     dash_status,
                     dash_detail,
-                    seg_pick,
                     dash_stt_btn,
                     dash_tts_all_btn,
-                    dash_tts_pick_btn,
-                    dash_tts_one_btn,
                     dash_final_btn,
-                    dash_panel,
                     dash_job,
-                    dash_utt,
-                    dash_utt_label,
                     dash_seg_info,
                     dash_page,
                     *seg_row_outs,
@@ -1347,7 +1308,6 @@ def build_ui():
                 dash_refresh.click(refresh_jobs, outputs=[dash_pick])
                 demo.load(dash_refresh_table, outputs=[dash_table])
                 dash_pick.change(dash_open_job, inputs=[dash_pick], outputs=select_outs)
-                dash_open.click(dash_open_job, inputs=[dash_pick], outputs=select_outs)
                 dash_table.select(
                     dash_table_select,
                     inputs=[dash_table],
@@ -1364,10 +1324,6 @@ def build_ui():
                     outputs=dash_action_outputs,
                 )
                 for i in range(MAX_SEG_ROWS):
-                    seg_edit_btns[i].click(
-                        dash_edit_seg,
-                        outputs=[seg_texts[i], seg_save_btns[i]],
-                    )
                     seg_save_btns[i].click(
                         dash_save_seg,
                         inputs=[dash_job, seg_uids[i], seg_texts[i], dash_page],
@@ -1391,16 +1347,6 @@ def build_ui():
                 dash_tts_all_btn.click(
                     dash_rerun_tts_all,
                     inputs=[dash_job, dash_vieneu, dash_voice],
-                    outputs=dash_action_outputs,
-                )
-                dash_tts_one_btn.click(
-                    dash_rerun_tts_pick,
-                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt, dash_voice],
-                    outputs=dash_action_outputs,
-                )
-                dash_tts_pick_btn.click(
-                    dash_rerun_tts_pick,
-                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt, dash_voice],
                     outputs=dash_action_outputs,
                 )
                 dash_final_btn.click(
