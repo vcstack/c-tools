@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from ctool.logging_setup import logger
+from ctool.store import save_transcript_job
 
 from .alignment import build_json_payload
 from .audio import extract_audio, get_duration_seconds, probe_duration_ffprobe, validate_input
@@ -28,7 +29,8 @@ def _step(n: int, total: int, message: str) -> None:
 def run_pipeline(input_path: str | Path, output_path: str | Path, config: PipelineConfig) -> dict:
     total_steps = 5
     raw = str(input_path).strip()
-    if is_url(raw):
+    source_url = raw if is_url(raw) else None
+    if source_url:
         print("Downloading URL...")
         input_path = download_media_url(raw, Path("input"), cookies=config.cookies_path)
     input_path = validate_input(input_path)
@@ -96,6 +98,17 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
         duration=duration,
         result_diarize=diarized,
     )
+
+    if config.persist:
+        payload = save_transcript_job(
+            payload,
+            asr_model=config.asr_model,
+            min_speakers=config.min_speakers,
+            max_speakers=config.max_speakers,
+            input_url=source_url,
+            language=diarized.get("language") or asr_result.get("language"),
+            store_root=config.store_root,
+        )
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)

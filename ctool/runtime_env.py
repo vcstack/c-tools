@@ -46,6 +46,7 @@ def pipeline_env(base: dict[str, str] | None = None) -> dict[str, str]:
     env = dict(base if base is not None else os.environ)
     env["MPLBACKEND"] = "Agg"
     env.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+    env.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.75")
     extras = extra_lib_dirs()
     if extras:
         current = env.get("LD_LIBRARY_PATH", "")
@@ -61,6 +62,7 @@ def pipeline_env(base: dict[str, str] | None = None) -> dict[str, str]:
 def apply_in_process(*, reexec: bool = True) -> None:
     os.environ["MPLBACKEND"] = "Agg"
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+    os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.75")
     extras = extra_lib_dirs()
     current = os.environ.get("LD_LIBRARY_PATH", "")
     parts = [p for p in extras if p not in current.split(":")]

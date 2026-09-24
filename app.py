@@ -117,6 +117,7 @@ def run_job(
         f"{result['source']['duration']}s · "
         f"{len(result.get('speakers', []))} speakers · "
         f"{len(rows)} segments"
+        + (f" · job {result.get('job_id')}" if result.get("job_id") else "")
     )
     pretty = json.dumps(result, ensure_ascii=False, indent=2)
     return status, pretty, rows, str(output_path)
@@ -132,92 +133,260 @@ def _gr_file(label: str, **kwargs):
         return gr.File(label=label, **kwargs)
 
 
+def _job_ids():
+    from ctool.store import list_jobs
+
+    return [row["id"] for row in list_jobs()]
+
+
+def _save_tts_prefs(api_key, voice_0, voice_1, tts_count, sample_text):
+    from ctool.settings import save_settings
+
+    save_settings(
+        vieneu_api_key=api_key,
+        voice_0=voice_0,
+        voice_1=voice_1,
+        tts_count=tts_count,
+        sample_text=sample_text,
+    )
+    return "Đã lưu key + giọng vào bảng settings (ctool.db)."
+
+
+def _test_tts(api_key, voice_0, sample_text):
+    from ctool.settings import save_settings
+    from ctool.store import resolve_store_root
+    from ctool.vieneu import synthesize
+
+    save_settings(vieneu_api_key=api_key, voice_0=voice_0, sample_text=sample_text)
+    dest = resolve_store_root() / "tts_test.mp3"
+    try:
+        path = synthesize(
+            api_key,
+            (sample_text or "").strip() or "Xin chào, đây là giọng VieNeu V4.",
+            (voice_0 or "Ngọc Lan").strip(),
+            dest=dest,
+        )
+    except Exception as exc:
+        return f"Test TTS failed: {exc}", None
+    return f"Test OK · {voice_0}", str(path)
+
+
+def run_tts_job(job_id, json_file, api_key, tts_count, speaker_0, speaker_1, voice_0, voice_1):
+    from ctool.settings import save_settings
+    from ctool.tts_job import run_vieneu_tts
+
+    save_settings(vieneu_api_key=api_key, voice_0=voice_0, voice_1=voice_1, tts_count=tts_count)
+    json_path = _as_local_path(json_file)
+    jid = (job_id or "").strip() or None
+    two = str(tts_count).strip().startswith("2")
+    v0 = (voice_0 or "Ngọc Lan").strip()
+    try:
+        if two:
+            mapping = {(speaker_0 or "SPEAKER_00").strip(): v0}
+            spk1 = (speaker_1 or "").strip()
+            if spk1 and spk1 not in mapping:
+                mapping[spk1] = (voice_1 or v0).strip()
+            manifest = run_vieneu_tts(
+                api_key,
+                job_id=jid,
+                json_path=json_path,
+                default_voice=v0,
+                voice_map=mapping,
+                only_speakers=list(mapping.keys()),
+            )
+        else:
+            manifest = run_vieneu_tts(
+                api_key,
+                job_id=jid,
+                json_path=json_path,
+                default_voice=v0,
+                single_voice=v0,
+            )
+    except Exception as exc:
+        return str(exc), "", None, None
+    folder = Path(manifest["store"]["job_dir"])
+    audio = folder / manifest["audio"] if manifest.get("audio") else None
+    status = f"TTS OK · job {manifest.get('job_id')} · {len(manifest.get('items', []))} utterances"
+    return (
+        status,
+        json.dumps(manifest, ensure_ascii=False, indent=2),
+        manifest["store"]["tts_json"],
+        str(audio) if audio and audio.is_file() else None,
+    )
+
+
 def build_ui():
     import gradio as gr
 
     with gr.Blocks(title="C-tool") as demo:
-        gr.Markdown(
-            """
-# C-tool
-Video / audio URL → whisper-jax + pyannote → JSON  
-Dán URL như SoniTranslate (YouTube, v.v.). Upload file chỉ là tùy chọn.
-            """
-        )
-        with gr.Row():
-            with gr.Column(scale=1):
-                media_url = gr.Textbox(
-                    label="Media URL",
-                    placeholder="https://www.youtube.com/watch?v=...",
-                    lines=1,
-                )
-                media = _gr_file(
-                    "Hoặc upload file (không bắt buộc)",
-                    file_types=[".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav", ".m4a", ".flac"],
-                )
-                cookies_text = gr.Textbox(
-                    label="YouTube cookies (dán, không cần upload file)",
-                    placeholder="Dán cookies.txt hoặc header Cookie: ...",
-                    lines=4,
-                )
-                cookies = _gr_file("Hoặc upload cookies.txt", file_types=[".txt"])
-                use_sample = gr.Checkbox(label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False)
-                hf_token = gr.Textbox(
-                    label="Hugging Face token",
-                    type="password",
-                    placeholder="Required when max speakers > 1",
-                )
-                model = gr.Dropdown(
-                    ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
-                    value="large-v2",
-                    label="whisper-jax model",
-                )
-                language = gr.Textbox(
-                    label="Language code",
-                    placeholder="auto-detect if empty (en, vi, ja, ...)",
+        gr.Markdown("# C-tool")
+        with gr.Tabs():
+            with gr.Tab("STT"):
+                gr.Markdown(
+                    "Video / audio URL → whisper-jax + pyannote → JSON. "
+                    "Upload file chỉ là tùy chọn."
                 )
                 with gr.Row():
-                    min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
-                    max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
-                with gr.Row():
-                    batch_size = gr.Number(label="Batch size", value=8, precision=0)
-                    device = gr.Dropdown(["auto", "cuda", "cpu", "tpu"], value="auto", label="Device")
-                with gr.Row():
-                    run_btn = gr.Button("Run", variant="primary")
-                    test_btn = gr.Button("Test (JFK)")
-            with gr.Column(scale=2):
-                status = gr.Textbox(label="Status", lines=2)
-                table = gr.Dataframe(
-                    headers=["speaker", "start", "end", "text"],
-                    label="Segments",
-                    wrap=True,
-                )
-                json_out = gr.Code(label="JSON", language="json")
-                download = _gr_file("Download result.json")
+                    with gr.Column(scale=1):
+                        media_url = gr.Textbox(
+                            label="Media URL",
+                            placeholder="https://www.youtube.com/watch?v=...",
+                            lines=1,
+                        )
+                        media = _gr_file(
+                            "Hoặc upload file (không bắt buộc)",
+                            file_types=[
+                                ".mp4",
+                                ".mkv",
+                                ".mov",
+                                ".avi",
+                                ".mp3",
+                                ".wav",
+                                ".m4a",
+                                ".flac",
+                            ],
+                        )
+                        cookies_text = gr.Textbox(
+                            label="YouTube cookies (dán, không cần upload file)",
+                            placeholder="Dán cookies.txt hoặc header Cookie: ...",
+                            lines=4,
+                        )
+                        cookies = _gr_file("Hoặc upload cookies.txt", file_types=[".txt"])
+                        use_sample = gr.Checkbox(
+                            label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False
+                        )
+                        hf_token = gr.Textbox(
+                            label="Hugging Face token",
+                            type="password",
+                            placeholder="Required when max speakers > 1",
+                        )
+                        model = gr.Dropdown(
+                            ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
+                            value="large-v2",
+                            label="whisper-jax model",
+                        )
+                        language = gr.Textbox(
+                            label="Language code",
+                            placeholder="auto-detect if empty (en, vi, ja, ...)",
+                        )
+                        with gr.Row():
+                            min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
+                            max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
+                        with gr.Row():
+                            batch_size = gr.Number(label="Batch size", value=8, precision=0)
+                            device = gr.Dropdown(
+                                ["auto", "cuda", "cpu", "tpu"], value="auto", label="Device"
+                            )
+                        with gr.Row():
+                            run_btn = gr.Button("Run", variant="primary")
+                            test_btn = gr.Button("Test (JFK)")
+                    with gr.Column(scale=2):
+                        status = gr.Textbox(label="Status", lines=2)
+                        table = gr.Dataframe(
+                            headers=["speaker", "start", "end", "text"],
+                            label="Segments",
+                            wrap=True,
+                        )
+                        json_out = gr.Code(label="JSON", language="json")
+                        download = _gr_file("Download result.json")
 
-        outputs = [status, json_out, table, download]
-        run_btn.click(
-            run_job,
-            inputs=[
-                media_url,
-                media,
-                use_sample,
-                hf_token,
-                model,
-                language,
-                min_speakers,
-                max_speakers,
-                batch_size,
-                device,
-                cookies,
-                cookies_text,
-            ],
-            outputs=outputs,
-        )
-        test_btn.click(
-            lambda hf, bs, dev: run_job("", None, True, hf, "tiny", "en", 1, 1, bs, dev),
-            inputs=[hf_token, batch_size, device],
-            outputs=outputs,
-        )
+                outputs = [status, json_out, table, download]
+                run_btn.click(
+                    run_job,
+                    inputs=[
+                        media_url,
+                        media,
+                        use_sample,
+                        hf_token,
+                        model,
+                        language,
+                        min_speakers,
+                        max_speakers,
+                        batch_size,
+                        device,
+                        cookies,
+                        cookies_text,
+                    ],
+                    outputs=outputs,
+                )
+                test_btn.click(
+                    lambda hf, bs, dev: run_job("", None, True, hf, "tiny", "en", 1, 1, bs, dev),
+                    inputs=[hf_token, batch_size, device],
+                    outputs=outputs,
+                )
+
+            with gr.Tab("TTS VieNeu V4"):
+                from ctool.settings import load_settings
+
+                prefs = load_settings()
+                two_on = str(prefs.get("tts_count") or "1") == "2"
+                gr.Markdown(
+                    "Key + giọng lưu bảng **settings** trong `ctool.db`. "
+                    "Gen 1 hoặc 2 giọng dù JSON có 2 speaker."
+                )
+                job_dd = gr.Dropdown(choices=_job_ids(), label="Job", allow_custom_value=True)
+                refresh_btn = gr.Button("Làm mới job")
+                tts_json_in = _gr_file("Hoặc JSON transcript", file_types=[".json"])
+                vieneu_key = gr.Textbox(
+                    label="VieNeu API key (lưu DB)",
+                    type="password",
+                    value=prefs.get("vieneu_api_key") or "",
+                )
+                tts_count = gr.Radio(
+                    ["1", "2"], value=prefs.get("tts_count") or "1", label="Số giọng TTS"
+                )
+                speaker_0 = gr.Dropdown(
+                    ["SPEAKER_00"], value="SPEAKER_00", label="Speaker A", allow_custom_value=True
+                )
+                voice_0 = gr.Textbox(label="Giọng A", value=prefs.get("voice_0") or "Ngọc Lan")
+                speaker_1 = gr.Dropdown(
+                    ["SPEAKER_01"],
+                    value="SPEAKER_01",
+                    label="Speaker B",
+                    allow_custom_value=True,
+                    visible=two_on,
+                )
+                voice_1 = gr.Textbox(
+                    label="Giọng B",
+                    value=prefs.get("voice_1") or "Phạm Tuyên",
+                    visible=two_on,
+                )
+                sample_text = gr.Textbox(
+                    label="Câu test TTS",
+                    value=prefs.get("sample_text") or "Xin chào, đây là giọng VieNeu V4.",
+                )
+                save_pref_btn = gr.Button("Lưu key + giọng vào DB")
+                test_tts_btn = gr.Button("Test TTS")
+                tts_btn = gr.Button("Gen TTS", variant="primary")
+                tts_status = gr.Textbox(label="Status", lines=2)
+                tts_json_out = gr.Code(label="03_tts.json", language="json")
+                tts_json_dl = _gr_file("Download 03_tts.json")
+                tts_audio = gr.Audio(label="Audio", type="filepath")
+                refresh_btn.click(lambda: gr.update(choices=_job_ids()), outputs=[job_dd])
+                save_pref_btn.click(
+                    _save_tts_prefs,
+                    inputs=[vieneu_key, voice_0, voice_1, tts_count, sample_text],
+                    outputs=[tts_status],
+                )
+                test_tts_btn.click(
+                    _test_tts,
+                    inputs=[vieneu_key, voice_0, sample_text],
+                    outputs=[tts_status, tts_audio],
+                )
+                tts_btn.click(
+                    run_tts_job,
+                    inputs=[
+                        job_dd,
+                        tts_json_in,
+                        vieneu_key,
+                        tts_count,
+                        speaker_0,
+                        speaker_1,
+                        voice_0,
+                        voice_1,
+                    ],
+                    outputs=[tts_status, tts_json_out, tts_json_dl, tts_audio],
+                )
     return demo
 
 

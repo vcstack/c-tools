@@ -68,6 +68,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Netscape cookies.txt for YouTube (Colab IPs often need this)",
     )
+    parser.add_argument(
+        "--store-dir",
+        default=None,
+        help="SQLite + job folders (default: Drive/ctool if mounted, else ./data/ctool)",
+    )
+    parser.add_argument(
+        "--no-store",
+        action="store_true",
+        help="Skip SQLite / job-folder persist",
+    )
     return parser.parse_args()
 
 
@@ -83,6 +93,8 @@ def main() -> int:
         device=resolve_device(args.device),
         work_dir=args.work_dir,
         cookies_path=args.cookies,
+        store_root=args.store_dir,
+        persist=not args.no_store,
     )
     config.diarization_model_key = args.diarization_model
     if args.diarization_model == "disable":

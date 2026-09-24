@@ -16,7 +16,7 @@ Speaker diarization (pyannote)
 JSON
 ```
 
-No translation, TTS, voice cloning, or video rendering.
+No translation, local voice cloning, or video rendering. Cloud TTS: VieNeu **V4 API** (tab **TTS VieNeu V4**).
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ HF_TOKEN=your_token_here
 Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab (GPU T4).
 
 1. Run **Reset + cài** — creates Python 3.10 venv (whisper-jax cannot use Colab 3.13).
-2. Run **Mở UI** — installs Gradio on Colab's Python and opens the form. Pipeline still runs inside the venv.
+2. Run **Mở UI** — mounts Drive (`MyDrive/ctool`), installs Gradio on Colab's Python, opens the form. Pipeline still runs inside the venv.
 
 Do not install Gradio into `ctool-venv` (breaks whisper-jax pins). Local optional UI: `python app.py`.
 
@@ -86,6 +86,36 @@ python main.py --input ./input/test.wav --output ./output/result.json --model ti
 | `--cookies` | Netscape `cookies.txt` for YouTube (Colab IPs often require this) |
 
 YouTube on Colab may ask to sign in. Paste cookies into the UI box (Netscape file contents or a `Cookie:` header) or pass `--cookies`. See [yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
+
+## SQLite + Drive
+
+After each successful run the pipeline writes:
+
+```text
+{store}/ctool.db
+{store}/jobs/{job_id}/01_transcript.json
+```
+
+Default `{store}`:
+
+1. `--store-dir` or `CTOOL_STORE`
+2. `/content/drive/MyDrive/ctool` if Drive is mounted
+3. `./data/ctool` locally
+
+Colab: mount Drive, then `export CTOOL_STORE=/content/drive/MyDrive/ctool`. Skip persist with `--no-store`.
+
+`ctool.db` holds `jobs`, `speakers`, `segments`. TTS writes `03_tts.json` + `tts/*.mp3` in the same job folder.
+
+## VieNeu TTS (V4 cloud)
+
+V4 **chỉ có trên API** `https://api.vieneu.io/api/v1`. Build `VieNeu-TTS` trên Colab / `pip install vieneu` là **v3 on-device**, không phải V4.
+
+1. Tạo key tại [vieneu.io](https://www.vieneu.io/)
+2. Tab **TTS VieNeu V4** — dán key, chọn job hoặc upload JSON
+3. Chọn gen **1 hoặc 2 giọng** (dropdown speaker từ JSON)
+4. **Test TTS** với 1 câu mẫu
+
+Key, giọng, số speaker lưu bảng `settings` trong `ctool.db` (cùng file SQLite trên Drive).
 
 ## Output JSON
 

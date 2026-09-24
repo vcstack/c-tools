@@ -34,6 +34,8 @@ class PipelineConfig:
     hf_token: str | None = None
     work_dir: str = ".cache/pipeline"
     cookies_path: str | None = None
+    store_root: str | None = None
+    persist: bool = True
 
 
 def _jax_backend() -> str | None:
