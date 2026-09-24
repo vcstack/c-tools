@@ -78,7 +78,34 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip SQLite / job-folder persist",
     )
+    parser.add_argument(
+        "--auto-chunk",
+        action="store_true",
+        help="Split long audio (~>8 min) into parts for STT (lower RAM)",
+    )
+    parser.add_argument(
+        "--chunk-cuts",
+        default=None,
+        help="Comma-separated cut times (seconds); only with --auto-chunk",
+    )
+    parser.add_argument(
+        "--job-id",
+        default=None,
+        help="Existing job id (re-STT into same folder when used with --replace-job)",
+    )
+    parser.add_argument(
+        "--replace-job",
+        action="store_true",
+        help="Replace transcript for --job-id (blocked if job is Final)",
+    )
     return parser.parse_args()
+
+
+def _parse_chunk_cuts(raw: str | None) -> list[float] | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    return [float(x.strip()) for x in text.split(",") if x.strip()]
 
 
 def main() -> int:
@@ -95,6 +122,10 @@ def main() -> int:
         cookies_path=args.cookies,
         store_root=args.store_dir,
         persist=not args.no_store,
+        auto_chunk=bool(args.auto_chunk),
+        chunk_boundaries=_parse_chunk_cuts(args.chunk_cuts) if args.auto_chunk else None,
+        existing_job_id=(args.job_id or "").strip() or None,
+        replace_job=bool(args.replace_job),
     )
     config.diarization_model_key = args.diarization_model
     if args.diarization_model == "disable":

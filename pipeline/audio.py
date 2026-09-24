@@ -44,19 +44,19 @@ def get_duration_seconds(audio_path: str | Path) -> float:
 
 
 def extract_audio(input_path: str | Path, output_wav: str | Path) -> Path:
-    """Extract/normalize to 44.1kHz stereo PCM WAV."""
+    """Extract/normalize to 16 kHz mono PCM WAV (whisper-jax / lower RAM)."""
     input_path = Path(input_path)
     output_wav = Path(output_wav)
     output_wav.parent.mkdir(parents=True, exist_ok=True)
 
     if is_audio(input_path) and input_path.suffix.lower() == ".wav":
         cmd = (
-            f'ffmpeg -y -i "{input_path}" -acodec pcm_s16le -ar 44100 -ac 2 '
+            f'ffmpeg -y -i "{input_path}" -acodec pcm_s16le -ar 16000 -ac 1 '
             f'"{output_wav}"'
         )
     else:
         cmd = (
-            f'ffmpeg -y -i "{input_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 '
+            f'ffmpeg -y -i "{input_path}" -vn -acodec pcm_s16le -ar 16000 -ac 1 '
             f'"{output_wav}"'
         )
     run_command(cmd)

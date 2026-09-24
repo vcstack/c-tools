@@ -59,6 +59,140 @@ def _as_path(media_file) -> Path | None:
     return path if path.is_file() else None
 
 
+def _resolve_cookies_path(cookies_file, cookies_text) -> Path | None:
+    cookies = _as_path(cookies_file)
+    pasted = (cookies_text or "").strip()
+    if pasted:
+        from pipeline.download import cookies_text_to_file
+
+        cookies = cookies_text_to_file(pasted, ROOT / "input" / "cookies.txt")
+    return cookies
+
+
+def _chunk_panel_hidden():
+    import gradio as gr
+    from pipeline.chunking import MAX_CUT_SLIDERS
+
+    hidden = gr.update(visible=False)
+    parts: list = []
+    for _ in range(MAX_CUT_SLIDERS):
+        parts.extend([hidden, hidden, hidden])
+    return (hidden, "", None, *parts)
+
+
+def load_chunk_panel(media_url, media_file, cookies_file, cookies_text, auto_chunk):
+    import gradio as gr
+    from pipeline.chunking import (
+        MAX_CUT_SLIDERS,
+        boundary_slider_limits,
+        default_boundaries,
+        format_mmss,
+        needs_chunking,
+        probe_media_duration,
+    )
+
+    url = (media_url or "").strip()
+    local = _as_path(media_file)
+    if not url and not local:
+        return _chunk_panel_hidden()
+    source = url if url else str(local)
+    cookies = _resolve_cookies_path(cookies_file, cookies_text)
+    dur = probe_media_duration(source, cookies)
+    if dur is None:
+        return (
+            gr.update(visible=False),
+            "Không đo được độ dài (thử upload file hoặc kiểm tra URL/cookies).",
+            None,
+            *(_chunk_panel_hidden()[3:]),
+        )
+    if not auto_chunk:
+        long = needs_chunking(dur)
+        hint = (
+            f"Độ dài ~**{format_mmss(dur)}** — **không cắt** (chưa bật tự động cắt). "
+            "File dài dễ OOM trên Colab free."
+            if long
+            else f"Độ dài ~**{format_mmss(dur)}** — STT một lần."
+        )
+        return (
+            gr.update(visible=long),
+            hint,
+            dur,
+            *(_chunk_panel_hidden()[3:]),
+        )
+
+    if not needs_chunking(dur):
+        return (
+            gr.update(visible=False),
+            f"Độ dài ~**{format_mmss(dur)}** — dưới 8 phút, STT một lần (không cắt).",
+            dur,
+            *(_chunk_panel_hidden()[3:]),
+        )
+
+    bounds = default_boundaries(dur)
+    n = len(bounds)
+    info = (
+        f"Độ dài ~**{format_mmss(dur)}** → **{n + 1} phần** (số phần cố định). "
+        "Kéo **mép cắt**, **Nghe quanh mép** để kiểm tra, rồi **Run**. "
+        f"Mỗi phần tối đa 10 phút, chồng {3:.0f}s khi STT."
+    )
+    row_updates = []
+    for i in range(MAX_CUT_SLIDERS):
+        if i < n:
+            lo, hi = boundary_slider_limits(dur, bounds, i)
+            row_updates.extend(
+                [
+                    gr.update(visible=True),
+                    gr.update(
+                        visible=True,
+                        value=bounds[i],
+                        minimum=lo,
+                        maximum=hi,
+                        step=0.5,
+                        label=f"Mép {i + 1}/{n} · {format_mmss(bounds[i])}",
+                    ),
+                    gr.update(visible=True),
+                ]
+            )
+        else:
+            row_updates.extend([gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)])
+    return (gr.update(visible=True), info, dur, *row_updates)
+
+
+def preview_cut_audio(media_url, media_file, cut_sec):
+    from pipeline.chunking import extract_preview_clip, format_mmss
+
+    local = _as_path(media_file)
+    if not local:
+        return None, "Preview cần **upload file** (URL vẫn Run được, nhưng không nghe thử trước)."
+    try:
+        center = float(cut_sec)
+    except (TypeError, ValueError):
+        return None, "Chọn mép cắt trước."
+    out = Path(tempfile.gettempdir()) / f"ctool_cut_preview_{os.getpid()}.wav"
+    try:
+        extract_preview_clip(local, out, center, window_sec=10.0)
+    except Exception as exc:
+        return None, f"Preview lỗi: {exc}"
+    return str(out), f"Nghe quanh **{format_mmss(center)}** (±5s)."
+
+
+def _chunk_cuts_for_cli(source, use_sample, cookies, auto_chunk, slider_values):
+    from pipeline.chunking import default_boundaries, needs_chunking, probe_media_duration, validate_boundaries
+
+    if use_sample or not auto_chunk:
+        return None, None
+    dur = probe_media_duration(source, cookies)
+    if dur is None or not needs_chunking(dur):
+        return None, None
+    n = len(default_boundaries(dur))
+    cuts = [float(slider_values[i]) for i in range(n)]
+    try:
+        cuts = validate_boundaries(dur, cuts)
+    except ValueError as exc:
+        return None, str(exc)
+    return ",".join(f"{c:.2f}" for c in cuts), None
+
+
 def _pipeline_exit_message(code: int) -> str:
     if code in (-9, 137):
         return (
@@ -81,6 +215,8 @@ def run_job(
     cookies_text=None,
     batch_size=4,
     use_sample=False,
+    auto_chunk=False,
+    *cut_sliders,
 ):
     if not PY.is_file():
         return "Chưa có venv. Chạy cell Reset + cài trước.", "", None, None
@@ -124,12 +260,14 @@ def run_job(
     lang = (language or "").strip()
     if lang:
         cmd.extend(["--language", lang])
-    cookies = _as_path(cookies_file)
-    pasted = (cookies_text or "").strip()
-    if pasted:
-        from pipeline.download import cookies_text_to_file
-
-        cookies = cookies_text_to_file(pasted, ROOT / "input" / "cookies.txt")
+    cookies = _resolve_cookies_path(cookies_file, cookies_text)
+    if auto_chunk:
+        cmd.append("--auto-chunk")
+    cuts_str, cut_err = _chunk_cuts_for_cli(source, use_sample, cookies, auto_chunk, cut_sliders)
+    if cut_err:
+        return cut_err, "", None, None
+    if cuts_str:
+        cmd.extend(["--chunk-cuts", cuts_str])
     if cookies:
         cmd.extend(["--cookies", str(cookies)])
     store_dir = (os.environ.get("CTOOL_STORE") or "").strip()
@@ -164,6 +302,139 @@ def run_test():
     return run_job("", None, "", "tiny", "en", 1, 1, use_sample=True)
 
 
+def dash_refresh_table():
+    from ctool.dashboard import jobs_overview_table
+
+    return jobs_overview_table()
+
+
+def _dash_action_response(message: str, job_id):
+    parts = dash_select_job(job_id)
+    return (message, parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6])
+
+
+def dash_select_job(job_id):
+    import gradio as gr
+    from ctool.dashboard import job_detail_text, segment_choices
+    from ctool.store import get_job, JOB_STATUS_FINAL
+
+    jid = (job_id or "").strip()
+    detail = job_detail_text(jid)
+    seg_rows = []
+    choices = segment_choices(jid)
+    try:
+        from ctool.store import segment_dashboard_rows
+
+        seg_rows = segment_dashboard_rows(jid)
+    except Exception:
+        seg_rows = []
+    row = get_job(jid) if jid else None
+    locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
+    lock_msg = "Job đã Final — STT/TTS bị khóa." if locked else ""
+    return (
+        detail,
+        seg_rows,
+        gr.update(choices=choices, value=[]),
+        gr.update(interactive=not locked),
+        gr.update(interactive=not locked),
+        gr.update(interactive=not locked),
+        gr.update(interactive=not locked),
+        lock_msg,
+    )
+
+
+def dash_rerun_stt(job_id, hf_token):
+    from ctool.dashboard import stt_rerun_command
+    from ctool.store import job_dir
+
+    if not PY.is_file():
+        return _dash_action_response("Chưa có venv.", job_id)
+    jid = (job_id or "").strip()
+    if not jid:
+        return _dash_action_response("Chọn job.", job_id)
+    try:
+        out = job_dir(jid) / "01_transcript.json"
+        store_dir = (os.environ.get("CTOOL_STORE") or "").strip()
+        cmd, _extra = stt_rerun_command(
+            jid,
+            python_bin=PY,
+            main_py=ROOT / "main.py",
+            output_json=out,
+            store_dir=store_dir or None,
+        )
+    except ValueError as exc:
+        return _dash_action_response(str(exc), job_id)
+    env = pipeline_env(os.environ.copy())
+    token = (hf_token or "").strip()
+    env["HF_TOKEN"] = token
+    env["HUGGING_FACE_HUB_TOKEN"] = token
+    code = subprocess.call(cmd, env=env, cwd=str(ROOT))
+    if code != 0:
+        return _dash_action_response(_pipeline_exit_message(code), job_id)
+    return _dash_action_response(f"Re-STT xong · job {jid}", job_id)
+
+
+def _dash_tts(job_id, api_key, selected_ids, all_segments: bool):
+    from ctool.dashboard import voice_map_from_prefs
+    from ctool.settings import load_settings
+    from ctool.store import assert_job_editable, load_transcript
+    from ctool.tts_job import run_vieneu_tts
+
+    jid = (job_id or "").strip()
+    if not jid:
+        raise ValueError("Chọn job.")
+    assert_job_editable(jid)
+    prefs = load_settings()
+    payload = load_transcript(jid)
+    two = str(prefs.get("tts_count") or "1") == "2"
+    mapping = voice_map_from_prefs(prefs, payload, two)
+    only_ids = None
+    if not all_segments:
+        only_ids = []
+        for raw in selected_ids or []:
+            uid = str(raw).split("·", 1)[0].strip()
+            if uid:
+                only_ids.append(uid)
+        if not only_ids:
+            raise ValueError("Chọn ít nhất một câu (hoặc bấm Gen TTS toàn bộ).")
+    run_vieneu_tts(
+        api_key,
+        job_id=jid,
+        default_voice=prefs.get("voice_0") or "Ngọc Lan",
+        voice_map=mapping,
+        only_speakers=list(mapping.keys()),
+        only_item_ids=only_ids,
+    )
+
+
+def dash_rerun_tts_all(job_id, api_key):
+    try:
+        _dash_tts(job_id, api_key, [], True)
+        msg = "Gen TTS toàn bộ xong."
+    except Exception as exc:
+        return _dash_action_response(str(exc), job_id)
+    return _dash_action_response(msg, job_id)
+
+
+def dash_rerun_tts_pick(job_id, api_key, selected):
+    try:
+        _dash_tts(job_id, api_key, selected, False)
+        msg = f"Gen lại {len(selected or [])} câu xong."
+    except Exception as exc:
+        return _dash_action_response(str(exc), job_id)
+    return _dash_action_response(msg, job_id)
+
+
+def dash_finalize(job_id):
+    from ctool.dashboard import finalize_job
+
+    try:
+        msg = finalize_job(job_id)
+    except ValueError as exc:
+        return _dash_action_response(str(exc), job_id)
+    return _dash_action_response(msg, job_id)
+
+
 def _job_ids() -> list[str]:
     from ctool.store import list_jobs
 
@@ -187,18 +458,24 @@ def _tts_prefs():
     return load_settings()
 
 
-def _voice_choices(api_key: str | None = None) -> list[str]:
+def fetch_voice_catalog(api_key: str | None = None) -> tuple[list[str], bool]:
+    """Return (voices, ok). ok=True only when the VieNeu API returned a list."""
     from ctool.vieneu import FALLBACK_VOICES, list_voices
 
-    names = list(FALLBACK_VOICES)
     key = (api_key or "").strip()
-    if key:
-        try:
-            fetched = list_voices(key)
-            if fetched:
-                names = fetched
-        except Exception:
-            pass
+    if not key:
+        return list(FALLBACK_VOICES), False
+    try:
+        fetched = list_voices(key)
+        if fetched:
+            return fetched, True
+    except Exception:
+        pass
+    return list(FALLBACK_VOICES), False
+
+
+def _voice_choices(api_key: str | None = None) -> list[str]:
+    names, _ok = fetch_voice_catalog(api_key)
     return names
 
 
@@ -217,7 +494,7 @@ def load_job_speakers(job_id, json_file, tts_count):
     spk0 = speakers[0]
     spk1 = speakers[1] if len(speakers) > 1 else speakers[0]
     info = " + ".join(speakers) if len(speakers) > 1 else f"{spk0} (JSON 1 speaker)"
-    voices = _voice_choices(prefs.get("vieneu_api_key"))
+    voices, _ok = fetch_voice_catalog(prefs.get("vieneu_api_key"))
     v0 = prefs.get("voice_0") or "Ngọc Lan"
     v1 = prefs.get("voice_1") or "Phạm Tuyên"
     if v0 not in voices:
@@ -237,10 +514,16 @@ def load_job_speakers(job_id, json_file, tts_count):
 def refresh_voice_list(api_key, voice_0, voice_1):
     import gradio as gr
 
-    voices = _voice_choices(api_key)
+    voices, ok = fetch_voice_catalog(api_key)
     v0 = voice_0 if voice_0 in voices else (voices[0] if voices else "Ngọc Lan")
     v1 = voice_1 if voice_1 in voices else (voices[1] if len(voices) > 1 else v0)
-    return gr.update(choices=voices, value=v0), gr.update(choices=voices, value=v1)
+    status = "Đã tải list giọng VieNeu." if ok else "Không tải được list giọng. Bấm Tải lại sau khi kiểm tra API key."
+    return (
+        gr.update(choices=voices, value=v0),
+        gr.update(choices=voices, value=v1),
+        gr.update(visible=not ok),
+        status,
+    )
 
 
 def persist_tts_settings(api_key, voice_0, voice_1, tts_count, sample_text, one_mode):
@@ -352,6 +635,7 @@ def run_tts_job(
 
 def build_ui():
     import gradio as gr
+    from pipeline.chunking import MAX_CUT_SLIDERS
 
     with gr.Blocks(title="C-tool") as demo:
         gr.Markdown("# C-tool")
@@ -362,6 +646,8 @@ def build_ui():
                     "Colab IP hay bị YouTube hỏi login. Dán cookies "
                     "([yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)).\n\n"
                     "**Colab free:** `medium` + batch 4. `large-v2` dễ exit -9 (OOM).\n\n"
+                    "**Tự động cắt file dài:** bật checkbox (~8 phút/phần, kéo mép cắt). "
+                    "Tắt = STT cả file (dài dễ OOM Colab free). Audio STT: mono 16 kHz.\n\n"
                     "Lưu: SQLite + folder job (`CTOOL_STORE=/content/drive/MyDrive/ctool`)."
                 )
                 with gr.Row():
@@ -406,6 +692,41 @@ def build_ui():
                         with gr.Row():
                             min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
                             max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
+                        auto_chunk_cb = gr.Checkbox(
+                            label="Tự động cắt file dài (> ~8 phút) khi STT",
+                            value=False,
+                        )
+                        chunk_duration = gr.State(None)
+                        with gr.Group(visible=False) as chunk_group:
+                            chunk_info = gr.Markdown("")
+                            cut_rows: list = []
+                            cut_sliders: list = []
+                            cut_preview_btns: list = []
+                            for idx in range(MAX_CUT_SLIDERS):
+                                with gr.Row(visible=False) as cut_row:
+                                    cut_rows.append(cut_row)
+                                    cut_sliders.append(
+                                        gr.Slider(
+                                            minimum=0,
+                                            maximum=100,
+                                            step=0.5,
+                                            visible=False,
+                                            label=f"Mép cắt {idx + 1}",
+                                        )
+                                    )
+                                    cut_preview_btns.append(
+                                        gr.Button("Nghe quanh mép", size="sm", visible=False)
+                                    )
+                            chunk_preview_audio = gr.Audio(
+                                label="Nghe thử quanh mép",
+                                type="filepath",
+                                interactive=False,
+                            )
+                            chunk_preview_status = gr.Textbox(
+                                label="Preview",
+                                interactive=False,
+                                lines=1,
+                            )
                         with gr.Row():
                             run_btn = gr.Button("Run", variant="primary")
                             test_btn = gr.Button("Test (JFK)")
@@ -420,6 +741,28 @@ def build_ui():
                         download = gr.File(label="Download result.json")
 
                 outputs = [status, json_out, table, download]
+                chunk_panel_outputs = [
+                    chunk_group,
+                    chunk_info,
+                    chunk_duration,
+                    *[
+                        x
+                        for i in range(MAX_CUT_SLIDERS)
+                        for x in (cut_rows[i], cut_sliders[i], cut_preview_btns[i])
+                    ],
+                ]
+                chunk_inputs = [media_url, media, cookies, cookies_text, auto_chunk_cb]
+                media_url.change(load_chunk_panel, inputs=chunk_inputs, outputs=chunk_panel_outputs)
+                media.change(load_chunk_panel, inputs=chunk_inputs, outputs=chunk_panel_outputs)
+                cookies_text.change(load_chunk_panel, inputs=chunk_inputs, outputs=chunk_panel_outputs)
+                cookies.change(load_chunk_panel, inputs=chunk_inputs, outputs=chunk_panel_outputs)
+                auto_chunk_cb.change(load_chunk_panel, inputs=chunk_inputs, outputs=chunk_panel_outputs)
+                for i, btn in enumerate(cut_preview_btns):
+                    btn.click(
+                        preview_cut_audio,
+                        inputs=[media_url, media, cut_sliders[i]],
+                        outputs=[chunk_preview_audio, chunk_preview_status],
+                    )
                 run_btn.click(
                     run_job,
                     inputs=[
@@ -433,6 +776,8 @@ def build_ui():
                         cookies,
                         cookies_text,
                         batch_size,
+                        auto_chunk_cb,
+                        *cut_sliders,
                     ],
                     outputs=outputs,
                 )
@@ -441,6 +786,7 @@ def build_ui():
             with gr.Tab("TTS VieNeu V4"):
                 prefs = _tts_prefs()
                 two_on = str(prefs.get("tts_count") or "1") == "2"
+                init_voices, voices_ok = fetch_voice_catalog(prefs.get("vieneu_api_key"))
                 gr.Markdown(
                     "Cloud **V4**. Key + giọng lưu bảng **`settings`** trong `ctool.db` "
                     "(file DB trên Drive thì tắt Colab vẫn còn).\n\n"
@@ -482,8 +828,10 @@ def build_ui():
                             allow_custom_value=True,
                         )
                         voice_0 = gr.Dropdown(
-                            choices=_voice_choices(prefs.get("vieneu_api_key")),
-                            value=prefs.get("voice_0") or "Ngọc Lan",
+                            choices=init_voices,
+                            value=prefs.get("voice_0")
+                            if prefs.get("voice_0") in init_voices
+                            else (init_voices[0] if init_voices else "Ngọc Lan"),
                             label="Giọng A",
                             allow_custom_value=True,
                         )
@@ -495,13 +843,18 @@ def build_ui():
                             visible=two_on,
                         )
                         voice_1 = gr.Dropdown(
-                            choices=_voice_choices(prefs.get("vieneu_api_key")),
-                            value=prefs.get("voice_1") or "Phạm Tuyên",
+                            choices=init_voices,
+                            value=prefs.get("voice_1")
+                            if prefs.get("voice_1") in init_voices
+                            else (init_voices[1] if len(init_voices) > 1 else init_voices[0]),
                             label="Giọng B",
                             allow_custom_value=True,
                             visible=two_on,
                         )
-                        load_voices_btn = gr.Button("Tải list giọng VieNeu")
+                        load_voices_btn = gr.Button(
+                            "Tải lại list giọng",
+                            visible=not voices_ok,
+                        )
                         sample_text = gr.Textbox(
                             label="Câu test TTS",
                             value=prefs.get("sample_text")
@@ -534,10 +887,16 @@ def build_ui():
                     inputs=[job_dd, tts_json_in, tts_count],
                     outputs=speaker_outs,
                 )
+                key_evt = getattr(vieneu_key, "blur", None) or vieneu_key.change
+                key_evt(
+                    refresh_voice_list,
+                    inputs=[vieneu_key, voice_0, voice_1],
+                    outputs=[voice_0, voice_1, load_voices_btn, tts_status],
+                )
                 load_voices_btn.click(
                     refresh_voice_list,
                     inputs=[vieneu_key, voice_0, voice_1],
-                    outputs=[voice_0, voice_1],
+                    outputs=[voice_0, voice_1, load_voices_btn, tts_status],
                 )
                 save_pref_btn.click(
                     persist_tts_settings,
@@ -563,6 +922,95 @@ def build_ui():
                         one_mode,
                     ],
                     outputs=[tts_status, tts_json_out, tts_json_dl, tts_audio],
+                )
+
+            with gr.Tab("Dashboard"):
+                gr.Markdown(
+                    "Quản lý job đã lưu (`CTOOL_STORE`). **Final** = khóa, không re-STT / re-TTS.\n\n"
+                    "Giọng TTS lấy từ tab VieNeu (settings DB). Re-STT dùng URL/file đã lưu trong job."
+                )
+                dash_table = gr.Dataframe(
+                    headers=["job_id", "file", "trạng thái", "segments", "tts_câu", "created"],
+                    label="Jobs",
+                    interactive=False,
+                    wrap=True,
+                )
+                dash_refresh = gr.Button("Làm mới bảng")
+                dash_job = gr.Dropdown(
+                    choices=_job_ids(),
+                    label="Chọn job",
+                    allow_custom_value=True,
+                )
+                dash_detail = gr.Markdown("")
+                dash_seg_table = gr.Dataframe(
+                    headers=["id", "speaker", "start", "end", "text", "tts"],
+                    label="Segments",
+                    wrap=True,
+                )
+                seg_pick = gr.CheckboxGroup(
+                    choices=[],
+                    label="Câu cần gen lại TTS (chỉ khi gen từng câu)",
+                )
+                dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
+                dash_vieneu = gr.Textbox(
+                    label="VieNeu API key (re-TTS)",
+                    type="password",
+                    value=_tts_prefs().get("vieneu_api_key") or "",
+                )
+                with gr.Row():
+                    dash_stt_btn = gr.Button("Chạy lại STT")
+                    dash_tts_all_btn = gr.Button("Gen TTS toàn bộ")
+                    dash_tts_pick_btn = gr.Button("Gen TTS các câu đã chọn")
+                    dash_final_btn = gr.Button("Final (khóa job)", variant="primary")
+                dash_status = gr.Textbox(label="Status", lines=2)
+
+                dash_action_outputs = [
+                    dash_status,
+                    dash_detail,
+                    dash_seg_table,
+                    seg_pick,
+                    dash_stt_btn,
+                    dash_tts_all_btn,
+                    dash_tts_pick_btn,
+                    dash_final_btn,
+                ]
+
+                dash_refresh.click(dash_refresh_table, outputs=[dash_table])
+                dash_refresh.click(refresh_jobs, outputs=[dash_job])
+                demo.load(dash_refresh_table, outputs=[dash_table])
+                dash_job.change(
+                    dash_select_job,
+                    inputs=[dash_job],
+                    outputs=[
+                        dash_detail,
+                        dash_seg_table,
+                        seg_pick,
+                        dash_stt_btn,
+                        dash_tts_all_btn,
+                        dash_tts_pick_btn,
+                        dash_final_btn,
+                        dash_status,
+                    ],
+                )
+                dash_stt_btn.click(
+                    dash_rerun_stt,
+                    inputs=[dash_job, dash_hf],
+                    outputs=dash_action_outputs,
+                )
+                dash_tts_all_btn.click(
+                    dash_rerun_tts_all,
+                    inputs=[dash_job, dash_vieneu],
+                    outputs=dash_action_outputs,
+                )
+                dash_tts_pick_btn.click(
+                    dash_rerun_tts_pick,
+                    inputs=[dash_job, dash_vieneu, seg_pick],
+                    outputs=dash_action_outputs,
+                )
+                dash_final_btn.click(
+                    dash_finalize,
+                    inputs=[dash_job],
+                    outputs=dash_action_outputs,
                 )
     return demo
 

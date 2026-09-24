@@ -106,6 +106,8 @@ Colab: mount Drive, then `export CTOOL_STORE=/content/drive/MyDrive/ctool`. Skip
 
 `ctool.db` holds `jobs`, `speakers`, `segments`. TTS writes `03_tts.json` + `tts/*.mp3` in the same job folder.
 
+Colab tab **Dashboard**: job status (STT / TTS / **Final**), re-run STT, re-TTS (all or selected utterances), **Final** locks further STT/TTS. Job folder also stores `00_job_meta.json` and `source.*` (local upload) for re-STT.
+
 ## VieNeu TTS (V4 cloud)
 
 V4 **chỉ có trên API** `https://api.vieneu.io/api/v1`. Build `VieNeu-TTS` trên Colab / `pip install vieneu` là **v3 on-device**, không phải V4.

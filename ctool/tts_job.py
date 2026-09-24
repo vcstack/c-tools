@@ -9,7 +9,15 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from ctool.store import job_dir, load_transcript, new_job_id, resolve_store_root, save_tts_job
+from ctool.store import (
+    assert_job_editable,
+    job_dir,
+    load_tts_manifest,
+    load_transcript,
+    new_job_id,
+    resolve_store_root,
+    save_tts_job,
+)
 from ctool.vieneu import synthesize
 
 
@@ -88,6 +96,7 @@ def run_vieneu_tts(
     voice_map: dict[str, str] | None = None,
     only_speakers: list[str] | None = None,
     single_voice: str | None = None,
+    only_item_ids: list[str] | None = None,
     store_root: str | Path | None = None,
 ) -> dict[str, Any]:
     key = (api_key or "").strip() or os.environ.get("VIENEU_API_KEY", "").strip()
@@ -100,6 +109,8 @@ def run_vieneu_tts(
         fname = (payload.get("source") or {}).get("filename") or "tts"
         jid = new_job_id(fname)
         payload["job_id"] = jid
+    elif job_id:
+        assert_job_editable(jid, store_root)
 
     root = resolve_store_root(store_root)
     folder = job_dir(jid, root)
@@ -109,23 +120,30 @@ def run_vieneu_tts(
     voices = parse_voice_map(voice_map_text, default_voice or "Ngọc Lan")
     if voice_map:
         voices.update({k: v.strip() for k, v in voice_map.items() if (v or "").strip()})
-    items: list[dict[str, Any]] = []
-    audio_files: list[Path] = []
+
+    existing = load_tts_manifest(jid, root) or {}
+    regen_ids = {x.strip() for x in (only_item_ids or []) if (x or "").strip()} or None
+    partial = bool(regen_ids)
+    if partial and not existing.get("items"):
+        raise ValueError("Chưa có TTS — gen toàn bộ trước khi gen lại từng câu.")
 
     allow = {s for s in (only_speakers or []) if s} or None
+    new_by_id: dict[str, dict[str, Any]] = {}
     for i, seg in enumerate(payload.get("segments") or []):
         text = (seg.get("text") or "").strip()
         if not text:
+            continue
+        uid = f"u{i:04d}"
+        if regen_ids and uid not in regen_ids:
             continue
         speaker = seg.get("speaker") or "SPEAKER_00"
         if allow and speaker not in allow:
             continue
         voice = (single_voice or "").strip() or voices.get(speaker) or default_voice or "Ngọc Lan"
-        uid = f"u{i:04d}"
         dest = tts_dir / f"{uid}.mp3"
         print(f"VieNeu V4 {uid} {speaker} → {voice}")
         audio = synthesize(key, text, voice, dest=dest)
-        item = {
+        new_by_id[uid] = {
             "id": uid,
             "speaker": speaker,
             "voice": voice,
@@ -134,11 +152,25 @@ def run_vieneu_tts(
             "ref_start": seg.get("start"),
             "ref_end": seg.get("end"),
         }
-        items.append(item)
-        audio_files.append(audio)
+
+    if partial:
+        merged_items: dict[str, dict[str, Any]] = {
+            it["id"]: it for it in (existing.get("items") or []) if it.get("id")
+        }
+        merged_items.update(new_by_id)
+        items = [merged_items[k] for k in sorted(merged_items.keys())]
+    else:
+        items = [new_by_id[k] for k in sorted(new_by_id.keys())]
 
     if not items:
         raise ValueError("Không có segment text để TTS.")
+
+    audio_files: list[Path] = []
+    for item in items:
+        rel = item.get("audio") or ""
+        path = folder / rel if rel else None
+        if path and path.is_file():
+            audio_files.append(path)
 
     merged = _concat_ffmpeg(audio_files, folder / "tts_full")
     manifest: dict[str, Any] = {

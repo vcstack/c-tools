@@ -36,6 +36,10 @@ class PipelineConfig:
     cookies_path: str | None = None
     store_root: str | None = None
     persist: bool = True
+    auto_chunk: bool = False
+    chunk_boundaries: list[float] | None = None
+    existing_job_id: str | None = None
+    replace_job: bool = False
 
 
 def _jax_backend() -> str | None:

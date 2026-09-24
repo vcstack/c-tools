@@ -10,6 +10,7 @@ from ctool.store import save_transcript_job
 
 from .alignment import build_json_payload
 from .audio import extract_audio, get_duration_seconds, probe_duration_ffprobe, validate_input
+from .chunking import default_boundaries, needs_chunking, validate_boundaries
 from .config import (
     PipelineConfig,
     resolve_compute_type,
@@ -54,6 +55,17 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
     if duration is None:
         duration = get_duration_seconds(wav_path)
 
+    chunk_boundaries: list[float] | None = None
+    if config.auto_chunk and duration is not None and needs_chunking(duration):
+        raw_cuts = config.chunk_boundaries
+        if raw_cuts is None:
+            raw_cuts = default_boundaries(duration)
+        chunk_boundaries = validate_boundaries(duration, raw_cuts)
+        print(
+            f"Long audio: STT in {len(chunk_boundaries) + 1} parts "
+            f"(cuts at {[round(c, 1) for c in chunk_boundaries]} s)"
+        )
+
     _step(3, total_steps, "Running speech recognition...")
     logger.info(
         f"ASR device: {device}, diarization: {torch_device}, "
@@ -68,6 +80,8 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
         literalize_numbers=config.literalize_numbers,
         segment_duration_limit=config.segment_duration_limit,
         device=device,
+        chunk_boundaries=chunk_boundaries,
+        work_dir=str(work_dir / "chunks"),
     )
 
     _step(4, total_steps, "Running speaker diarization...")
@@ -100,6 +114,15 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
     )
 
     if config.persist:
+        stt_meta = {
+            "batch_size": config.batch_size,
+            "auto_chunk": bool(config.auto_chunk),
+            "chunk_cuts": (
+                ",".join(f"{c:.2f}" for c in config.chunk_boundaries)
+                if config.auto_chunk and config.chunk_boundaries
+                else None
+            ),
+        }
         payload = save_transcript_job(
             payload,
             asr_model=config.asr_model,
@@ -108,6 +131,10 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, config: Pipeli
             input_url=source_url,
             language=diarized.get("language") or asr_result.get("language"),
             store_root=config.store_root,
+            job_id=config.existing_job_id,
+            replace=config.replace_job,
+            source_media_path=input_path if not source_url else None,
+            stt_meta=stt_meta,
         )
 
     with open(output_path, "w", encoding="utf-8") as f:
