@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -154,11 +155,10 @@ def _save_tts_prefs(api_key, voice_0, voice_1, tts_count, sample_text):
 
 def _test_tts(api_key, voice_0, sample_text):
     from ctool.settings import save_settings
-    from ctool.store import resolve_store_root
     from ctool.vieneu import synthesize
 
     save_settings(vieneu_api_key=api_key, voice_0=voice_0, sample_text=sample_text)
-    dest = resolve_store_root() / "tts_test.mp3"
+    dest = Path(tempfile.gettempdir()) / "ctool_tts_test.mp3"
     try:
         path = synthesize(
             api_key,

@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -256,15 +257,23 @@ def persist_tts_settings(api_key, voice_0, voice_1, tts_count, sample_text, one_
     return "Đã lưu key + giọng vào bảng settings (ctool.db)."
 
 
+def _copy_for_gradio(src: Path) -> Path:
+    import shutil
+    import tempfile
+
+    dest = Path(tempfile.gettempdir()) / src.name
+    shutil.copy2(src, dest)
+    return dest
+
+
 def test_tts(api_key, voice_0, sample_text):
     from ctool.settings import save_settings
-    from ctool.store import resolve_store_root
     from ctool.vieneu import synthesize
 
     save_settings(vieneu_api_key=api_key, voice_0=voice_0, sample_text=sample_text)
     text = (sample_text or "").strip() or "Xin chào, đây là giọng VieNeu V4."
     voice = (voice_0 or "Ngọc Lan").strip()
-    dest = resolve_store_root() / "tts_test.mp3"
+    dest = Path(tempfile.gettempdir()) / "ctool_tts_test.mp3"
     try:
         path = synthesize(api_key, text, voice, dest=dest)
     except Exception as exc:
@@ -326,12 +335,14 @@ def run_tts_job(
 
     folder = Path(manifest["store"]["job_dir"])
     tts_json = manifest["store"]["tts_json"]
+    if tts_json and Path(tts_json).is_file():
+        tts_json = str(_copy_for_gradio(Path(tts_json)))
     audio = None
     rel = manifest.get("audio")
     if rel:
         cand = folder / rel
         if cand.is_file():
-            audio = str(cand)
+            audio = str(_copy_for_gradio(cand))
     status = (
         f"TTS OK · job {manifest.get('job_id')} · "
         f"{len(manifest.get('items', []))} utterances · {folder}"
@@ -574,10 +585,20 @@ def launch_ui(share: bool = True, server_name: str = "0.0.0.0") -> None:
         demo.queue()
     except Exception:
         pass
+    from ctool.store import resolve_store_root
+
+    allowed = [str(ROOT), "/tmp", str(resolve_store_root())]
+    drive = Path("/content/drive/MyDrive")
+    if drive.is_dir():
+        allowed.append(str(drive))
+    launch_kw = {"share": share, "server_name": server_name, "allowed_paths": allowed}
     try:
-        demo.launch(share=share, server_name=server_name, inline=True)
+        demo.launch(inline=True, **launch_kw)
     except TypeError:
-        demo.launch(share=share, server_name=server_name)
+        try:
+            demo.launch(**launch_kw)
+        except TypeError:
+            demo.launch(share=share, server_name=server_name)
 
 
 if __name__ == "__main__":
