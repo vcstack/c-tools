@@ -214,24 +214,20 @@ def run_job(
     cookies_file=None,
     cookies_text=None,
     batch_size=4,
-    use_sample=False,
     auto_chunk=False,
     *cut_sliders,
 ):
     if not PY.is_file():
         return "Chưa có venv. Chạy cell Reset + cài trước.", "", None, None
 
-    if use_sample:
-        source = str(_ensure_sample())
+    url = (media_url or "").strip()
+    local = _as_path(media_file)
+    if url:
+        source = url
+    elif local:
+        source = str(local)
     else:
-        url = (media_url or "").strip()
-        local = _as_path(media_file)
-        if url:
-            source = url
-        elif local:
-            source = str(local)
-        else:
-            return "Dán Media URL (YouTube, ...) hoặc upload file. Hoặc bấm Test.", "", None, None
+        return "Dán Media URL (YouTube, ...) hoặc upload file. Hoặc bấm Test.", "", None, None
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     env = pipeline_env(os.environ.copy())
@@ -263,7 +259,7 @@ def run_job(
     cookies = _resolve_cookies_path(cookies_file, cookies_text)
     if auto_chunk:
         cmd.append("--auto-chunk")
-    cuts_str, cut_err = _chunk_cuts_for_cli(source, use_sample, cookies, auto_chunk, cut_sliders)
+    cuts_str, cut_err = _chunk_cuts_for_cli(source, False, cookies, auto_chunk, cut_sliders)
     if cut_err:
         return cut_err, "", None, None
     if cuts_str:
@@ -299,7 +295,55 @@ def run_job(
 
 def run_test():
     # JFK clip, tiny, 1 speaker — no HF token needed
-    return run_job("", None, "", "tiny", "en", 1, 1, use_sample=True)
+    return _run_sample_job()
+
+
+def _run_sample_job():
+    if not PY.is_file():
+        return "Chưa có venv. Chạy cell Reset + cài trước.", "", None, None
+    source = str(_ensure_sample())
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    env = pipeline_env(os.environ.copy())
+    cmd = [
+        str(PY),
+        str(ROOT / "main.py"),
+        "--input",
+        source,
+        "--output",
+        str(OUT),
+        "--model",
+        "tiny",
+        "--batch-size",
+        "1",
+        "--min-speakers",
+        "1",
+        "--max-speakers",
+        "1",
+        "--device",
+        "auto",
+        "--language",
+        "en",
+    ]
+    store_dir = (os.environ.get("CTOOL_STORE") or "").strip()
+    if store_dir:
+        cmd.extend(["--store-dir", store_dir])
+    print(" ".join(cmd), flush=True)
+    code = subprocess.call(cmd, env=env, cwd=str(ROOT))
+    if code != 0 or not OUT.is_file():
+        return _pipeline_exit_message(code), "", None, None
+    data = json.loads(OUT.read_text(encoding="utf-8"))
+    rows = [
+        [seg.get("speaker"), seg.get("start"), seg.get("end"), seg.get("text")]
+        for seg in data.get("segments", [])
+    ]
+    job_id = data.get("job_id") or ""
+    status = (
+        f"{data.get('source', {}).get('filename')} · "
+        f"{len(data.get('speakers', []))} speakers · "
+        f"{len(rows)} segments"
+        + (f" · job {job_id}" if job_id else "")
+    )
+    return status, json.dumps(data, ensure_ascii=False, indent=2), rows, str(OUT)
 
 
 def dash_refresh_table():
