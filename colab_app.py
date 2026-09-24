@@ -310,7 +310,7 @@ def dash_refresh_table():
 
 def _dash_action_response(message: str, job_id):
     parts = dash_select_job(job_id)
-    return (message, parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6])
+    return (message,) + tuple(parts[:-1])
 
 
 def dash_select_job(job_id):
@@ -319,28 +319,78 @@ def dash_select_job(job_id):
     from ctool.store import get_job, JOB_STATUS_FINAL
 
     jid = (job_id or "").strip()
-    detail = job_detail_text(jid)
+    detail = job_detail_text(jid) if jid else "Click một dòng trong bảng để mở chi tiết."
     seg_rows = []
-    choices = segment_choices(jid)
-    try:
-        from ctool.store import segment_dashboard_rows
+    choices = segment_choices(jid) if jid else []
+    if jid:
+        try:
+            from ctool.store import segment_dashboard_rows
 
-        seg_rows = segment_dashboard_rows(jid)
-    except Exception:
-        seg_rows = []
+            seg_rows = segment_dashboard_rows(jid)
+        except Exception:
+            seg_rows = []
     row = get_job(jid) if jid else None
     locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
     lock_msg = "Job đã Final — STT/TTS bị khóa." if locked else ""
+    show = bool(row)
+    btn = gr.update(interactive=not locked)
     return (
         detail,
         seg_rows,
         gr.update(choices=choices, value=[]),
-        gr.update(interactive=not locked),
-        gr.update(interactive=not locked),
-        gr.update(interactive=not locked),
-        gr.update(interactive=not locked),
+        btn,
+        btn,
+        btn,
+        btn,
+        btn,
+        gr.update(visible=show),
+        jid,
+        "",
+        "",
         lock_msg,
     )
+
+
+def dash_table_select(evt):
+    rows = dash_refresh_table()
+    if evt is None or not rows:
+        return dash_select_job(None)
+    idx = getattr(evt, "index", None)
+    row_i = idx[0] if isinstance(idx, (list, tuple)) else idx
+    try:
+        row_i = int(row_i)
+    except (TypeError, ValueError):
+        return dash_select_job(None)
+    if row_i < 0 or row_i >= len(rows):
+        return dash_select_job(None)
+    return dash_select_job(rows[row_i][0])
+
+
+def dash_close_panel():
+    parts = dash_select_job(None)
+    return ("",) + tuple(parts[:-1])
+
+
+def dash_seg_select(evt, job_id):
+    from ctool.store import segment_dashboard_rows
+
+    jid = (job_id or "").strip()
+    if not jid or evt is None:
+        return "", ""
+    try:
+        rows = segment_dashboard_rows(jid)
+    except Exception:
+        return "", ""
+    idx = getattr(evt, "index", None)
+    row_i = idx[0] if isinstance(idx, (list, tuple)) else idx
+    try:
+        row_i = int(row_i)
+    except (TypeError, ValueError):
+        return "", ""
+    if row_i < 0 or row_i >= len(rows):
+        return "", ""
+    uid = rows[row_i][0]
+    return uid, f"Đã chọn **{uid}** — bấm Gen lại câu này."
 
 
 def dash_rerun_stt(job_id, hf_token):
@@ -416,10 +466,14 @@ def dash_rerun_tts_all(job_id, api_key):
     return _dash_action_response(msg, job_id)
 
 
-def dash_rerun_tts_pick(job_id, api_key, selected):
+def dash_rerun_tts_pick(job_id, api_key, selected, utt_id=None):
+    picks = list(selected or [])
+    uid = (utt_id or "").strip()
+    if not picks and uid:
+        picks = [uid]
     try:
-        _dash_tts(job_id, api_key, selected, False)
-        msg = f"Gen lại {len(selected or [])} câu xong."
+        _dash_tts(job_id, api_key, picks, False)
+        msg = f"Gen lại {len(picks)} câu xong."
     except Exception as exc:
         return _dash_action_response(str(exc), job_id)
     return _dash_action_response(msg, job_id)
@@ -433,6 +487,27 @@ def dash_finalize(job_id):
     except ValueError as exc:
         return _dash_action_response(str(exc), job_id)
     return _dash_action_response(msg, job_id)
+
+
+def dash_delete_job(job_id, confirm):
+    import gradio as gr
+    from ctool.dashboard import purge_job
+
+    keep_confirm = gr.update()
+    jid = (job_id or "").strip()
+    if not jid:
+        return (*_dash_action_response("Click một job trên bảng trước.", job_id), dash_refresh_table(), keep_confirm)
+    if not confirm:
+        return (
+            *_dash_action_response("Tick **Xác nhận xóa** rồi bấm Xóa job.", job_id),
+            dash_refresh_table(),
+            keep_confirm,
+        )
+    try:
+        msg = purge_job(jid)
+    except Exception as exc:
+        return (*_dash_action_response(str(exc), job_id), dash_refresh_table(), keep_confirm)
+    return (*_dash_action_response(msg, None), dash_refresh_table(), gr.update(value=False))
 
 
 def _job_ids() -> list[str]:
@@ -501,6 +576,7 @@ def load_job_speakers(job_id, json_file, tts_count):
         voices = [v0] + voices
     if v1 not in voices:
         voices = [v1] + [x for x in voices if x != v1]
+    has_source = bool((job_id or "").strip()) or bool(_as_path(json_file))
     return (
         gr.update(choices=speakers, value=spk0),
         gr.update(choices=speakers, value=spk1, visible=two),
@@ -508,6 +584,7 @@ def load_job_speakers(job_id, json_file, tts_count):
         gr.update(choices=voices, value=v1, visible=two),
         gr.update(visible=not two),
         gr.update(value=info),
+        gr.update(visible=has_source),
     )
 
 
@@ -633,31 +710,56 @@ def run_tts_job(
     return status, json.dumps(manifest, ensure_ascii=False, indent=2), tts_json, audio
 
 
+_UI_CSS = """
+.gradio-container { max-width: 1180px !important; }
+#dash-detail {
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 14px;
+  padding: 12px 14px 6px;
+  background: #f8fafc;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  margin-top: 8px;
+}
+#tts-map, #stt-main, #dash-table-wrap {
+  border-radius: 12px;
+}
+"""
+
+
+def _gradio_theme():
+    import gradio as gr
+
+    try:
+        return gr.themes.Soft(primary_hue="indigo", secondary_hue="slate")
+    except Exception:
+        return None
+
+
 def build_ui():
     import gradio as gr
     from pipeline.chunking import MAX_CUT_SLIDERS
 
-    with gr.Blocks(title="C-tool") as demo:
-        gr.Markdown("# C-tool")
+    theme = _gradio_theme()
+    blocks_kw = {"title": "C-tool", "css": _UI_CSS}
+    if theme is not None:
+        blocks_kw["theme"] = theme
+
+    with gr.Blocks(**blocks_kw) as demo:
+        gr.Markdown(
+            "# C-tool\n"
+            "STT → TTS → quản lý job trên Drive. "
+            "**Colab free:** `medium` + batch 4."
+        )
         with gr.Tabs():
             with gr.Tab("STT"):
-                gr.Markdown(
-                    "Video / audio → whisper-jax + pyannote → JSON.\n\n"
-                    "Colab IP hay bị YouTube hỏi login. Dán cookies "
-                    "([yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)).\n\n"
-                    "**Colab free:** `medium` + batch 4. `large-v2` dễ exit -9 (OOM).\n\n"
-                    "**Tự động cắt file dài:** bật checkbox (~8 phút/phần, kéo mép cắt). "
-                    "Tắt = STT cả file (dài dễ OOM Colab free). Audio STT: mono 16 kHz.\n\n"
-                    "Lưu: SQLite + folder job (`CTOOL_STORE=/content/drive/MyDrive/ctool`)."
-                )
                 with gr.Row():
-                    with gr.Column(scale=1):
+                    with gr.Column(scale=1, elem_id="stt-main"):
                         media_url = gr.Textbox(
                             label="Media URL",
                             placeholder="https://www.youtube.com/watch?v=...",
                         )
                         media = gr.File(
-                            label="Hoặc upload file (không bắt buộc)",
+                            label="Hoặc upload file",
                             file_types=[
                                 ".mp4",
                                 ".mkv",
@@ -669,31 +771,8 @@ def build_ui():
                                 ".flac",
                             ],
                         )
-                        cookies_text = gr.Textbox(
-                            label="YouTube cookies (dán, không cần upload file)",
-                            placeholder="Dán cookies.txt hoặc Cookie: ...",
-                            lines=4,
-                        )
-                        cookies = gr.File(
-                            label="Hoặc upload cookies.txt",
-                            file_types=[".txt"],
-                        )
-                        hf_token = gr.Textbox(label="Hugging Face token", type="password")
-                        model = gr.Dropdown(
-                            ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
-                            value="medium",
-                            label="whisper-jax model (Colab: tránh large nếu exit -9)",
-                        )
-                        batch_size = gr.Number(label="Batch size", value=4, precision=0)
-                        language = gr.Textbox(
-                            label="Language code",
-                            placeholder="auto-detect if empty (en, vi, ja, ...)",
-                        )
-                        with gr.Row():
-                            min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
-                            max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
                         auto_chunk_cb = gr.Checkbox(
-                            label="Tự động cắt file dài (> ~8 phút) khi STT",
+                            label="Tự động cắt file dài (> ~8 phút)",
                             value=False,
                         )
                         chunk_duration = gr.State(None)
@@ -728,8 +807,32 @@ def build_ui():
                                 lines=1,
                             )
                         with gr.Row():
-                            run_btn = gr.Button("Run", variant="primary")
+                            run_btn = gr.Button("Run STT", variant="primary")
                             test_btn = gr.Button("Test (JFK)")
+                        with gr.Accordion("Nâng cao (cookies, model, speaker)", open=False):
+                            cookies_text = gr.Textbox(
+                                label="YouTube cookies",
+                                placeholder="Dán cookies.txt hoặc Cookie: ...",
+                                lines=3,
+                            )
+                            cookies = gr.File(
+                                label="Hoặc upload cookies.txt",
+                                file_types=[".txt"],
+                            )
+                            hf_token = gr.Textbox(label="Hugging Face token", type="password")
+                            model = gr.Dropdown(
+                                ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
+                                value="medium",
+                                label="whisper-jax model",
+                            )
+                            batch_size = gr.Number(label="Batch size", value=4, precision=0)
+                            language = gr.Textbox(
+                                label="Language code",
+                                placeholder="trống = auto (en, vi, ja, ...)",
+                            )
+                            with gr.Row():
+                                min_speakers = gr.Number(label="Min speakers", value=1, precision=0)
+                                max_speakers = gr.Number(label="Max speakers", value=10, precision=0)
                     with gr.Column(scale=2):
                         status = gr.Textbox(label="Status", lines=2)
                         table = gr.Dataframe(
@@ -737,8 +840,9 @@ def build_ui():
                             label="Segments",
                             wrap=True,
                         )
-                        json_out = gr.Code(label="JSON", language="json")
                         download = gr.File(label="Download result.json")
+                        with gr.Accordion("JSON đầy đủ", open=False):
+                            json_out = gr.Code(label="JSON", language="json")
 
                 outputs = [status, json_out, table, download]
                 chunk_panel_outputs = [
@@ -787,90 +891,87 @@ def build_ui():
                 prefs = _tts_prefs()
                 two_on = str(prefs.get("tts_count") or "1") == "2"
                 init_voices, voices_ok = fetch_voice_catalog(prefs.get("vieneu_api_key"))
-                gr.Markdown(
-                    "Cloud **V4**. Key + giọng lưu bảng **`settings`** trong `ctool.db` "
-                    "(file DB trên Drive thì tắt Colab vẫn còn).\n\n"
-                    "JSON có 2 speaker vẫn chọn **gen 1 hoặc 2 giọng**."
-                )
                 with gr.Row():
                     with gr.Column(scale=1):
                         job_dd = gr.Dropdown(
                             choices=_job_ids(),
-                            label="Job (sau khi STT + store)",
+                            label="Chọn job đã STT",
                             allow_custom_value=True,
                         )
-                        refresh_btn = gr.Button("Làm mới danh sách job")
+                        refresh_btn = gr.Button("Làm mới danh sách")
                         tts_json_in = gr.File(
-                            label="Hoặc upload 01_transcript.json / result.json",
+                            label="Hoặc upload transcript JSON",
                             file_types=[".json"],
                         )
-                        speaker_info = gr.Textbox(label="Speaker trong JSON", interactive=False)
-                        vieneu_key = gr.Textbox(
-                            label="VieNeu API key (lưu DB)",
-                            type="password",
-                            value=prefs.get("vieneu_api_key") or "",
-                        )
-                        tts_count = gr.Radio(
-                            ["1", "2"],
-                            value=prefs.get("tts_count") or "1",
-                            label="Số giọng TTS",
-                        )
-                        one_mode = gr.Radio(
-                            ["Cả file", "Chỉ speaker A"],
-                            value=prefs.get("one_mode") or "Cả file",
-                            label="Khi chọn 1 giọng",
-                            visible=not two_on,
-                        )
-                        speaker_0 = gr.Dropdown(
-                            choices=["SPEAKER_00"],
-                            value="SPEAKER_00",
-                            label="Speaker A (list từ JSON)",
-                            allow_custom_value=True,
-                        )
-                        voice_0 = gr.Dropdown(
-                            choices=init_voices,
-                            value=prefs.get("voice_0")
-                            if prefs.get("voice_0") in init_voices
-                            else (init_voices[0] if init_voices else "Ngọc Lan"),
-                            label="Giọng A",
-                            allow_custom_value=True,
-                        )
-                        speaker_1 = gr.Dropdown(
-                            choices=["SPEAKER_01"],
-                            value="SPEAKER_01",
-                            label="Speaker B (list từ JSON)",
-                            allow_custom_value=True,
-                            visible=two_on,
-                        )
-                        voice_1 = gr.Dropdown(
-                            choices=init_voices,
-                            value=prefs.get("voice_1")
-                            if prefs.get("voice_1") in init_voices
-                            else (init_voices[1] if len(init_voices) > 1 else init_voices[0]),
-                            label="Giọng B",
-                            allow_custom_value=True,
-                            visible=two_on,
-                        )
-                        load_voices_btn = gr.Button(
-                            "Tải lại list giọng",
-                            visible=not voices_ok,
-                        )
-                        sample_text = gr.Textbox(
-                            label="Câu test TTS",
-                            value=prefs.get("sample_text")
-                            or "Xin chào, đây là giọng VieNeu V4.",
-                            lines=2,
-                        )
-                        save_pref_btn = gr.Button("Lưu key + giọng vào DB")
-                        with gr.Row():
-                            test_tts_btn = gr.Button("Test TTS")
+                        with gr.Group(visible=False, elem_id="tts-map") as tts_map:
+                            speaker_info = gr.Textbox(label="Speaker trong JSON", interactive=False)
+                            tts_count = gr.Radio(
+                                ["1", "2"],
+                                value=prefs.get("tts_count") or "1",
+                                label="Số giọng",
+                            )
+                            one_mode = gr.Radio(
+                                ["Cả file", "Chỉ speaker A"],
+                                value=prefs.get("one_mode") or "Cả file",
+                                label="Khi 1 giọng",
+                                visible=not two_on,
+                            )
+                            speaker_0 = gr.Dropdown(
+                                choices=["SPEAKER_00"],
+                                value="SPEAKER_00",
+                                label="Speaker A",
+                                allow_custom_value=True,
+                            )
+                            voice_0 = gr.Dropdown(
+                                choices=init_voices,
+                                value=prefs.get("voice_0")
+                                if prefs.get("voice_0") in init_voices
+                                else (init_voices[0] if init_voices else "Ngọc Lan"),
+                                label="Giọng A",
+                                allow_custom_value=True,
+                            )
+                            speaker_1 = gr.Dropdown(
+                                choices=["SPEAKER_01"],
+                                value="SPEAKER_01",
+                                label="Speaker B",
+                                allow_custom_value=True,
+                                visible=two_on,
+                            )
+                            voice_1 = gr.Dropdown(
+                                choices=init_voices,
+                                value=prefs.get("voice_1")
+                                if prefs.get("voice_1") in init_voices
+                                else (init_voices[1] if len(init_voices) > 1 else init_voices[0]),
+                                label="Giọng B",
+                                allow_custom_value=True,
+                                visible=two_on,
+                            )
                             tts_btn = gr.Button("Gen TTS", variant="primary")
+                        with gr.Accordion("API key + test giọng", open=False):
+                            vieneu_key = gr.Textbox(
+                                label="VieNeu API key",
+                                type="password",
+                                value=prefs.get("vieneu_api_key") or "",
+                            )
+                            load_voices_btn = gr.Button(
+                                "Tải lại list giọng",
+                                visible=not voices_ok,
+                            )
+                            sample_text = gr.Textbox(
+                                label="Câu test",
+                                value=prefs.get("sample_text")
+                                or "Xin chào, đây là giọng VieNeu V4.",
+                                lines=2,
+                            )
+                            save_pref_btn = gr.Button("Lưu key + giọng")
+                            test_tts_btn = gr.Button("Test TTS")
                     with gr.Column(scale=2):
                         tts_status = gr.Textbox(label="Status", lines=2)
-                        tts_json_out = gr.Code(label="03_tts.json", language="json")
-                        tts_json_dl = gr.File(label="Download 03_tts.json")
                         tts_audio = gr.Audio(label="Audio", type="filepath")
-                speaker_outs = [speaker_0, speaker_1, voice_0, voice_1, one_mode, speaker_info]
+                        tts_json_dl = gr.File(label="Download 03_tts.json")
+                        with gr.Accordion("03_tts.json", open=False):
+                            tts_json_out = gr.Code(label="03_tts.json", language="json")
+                speaker_outs = [speaker_0, speaker_1, voice_0, voice_1, one_mode, speaker_info, tts_map]
                 refresh_btn.click(refresh_jobs, outputs=[job_dd])
                 job_dd.change(
                     load_job_speakers,
@@ -926,44 +1027,69 @@ def build_ui():
 
             with gr.Tab("Dashboard"):
                 gr.Markdown(
-                    "Quản lý job đã lưu (`CTOOL_STORE`). **Final** = khóa, không re-STT / re-TTS.\n\n"
-                    "Giọng TTS lấy từ tab VieNeu (settings DB). Re-STT dùng URL/file đã lưu trong job."
+                    "Click **một dòng** để mở chi tiết. **Final** khóa STT/TTS. "
+                    "**Xóa** được kể cả Final."
                 )
+                dash_job = gr.Textbox(visible=False, value="")
+                dash_utt = gr.Textbox(visible=False, value="")
+                with gr.Row():
+                    dash_refresh = gr.Button("Làm mới", size="sm")
                 dash_table = gr.Dataframe(
                     headers=["job_id", "file", "trạng thái", "segments", "tts_câu", "created"],
-                    label="Jobs",
-                    interactive=False,
+                    label="Jobs — click một dòng",
+                    interactive=True,
                     wrap=True,
+                    elem_id="dash-table-wrap",
                 )
-                dash_refresh = gr.Button("Làm mới bảng")
-                dash_job = gr.Dropdown(
-                    choices=_job_ids(),
-                    label="Chọn job",
-                    allow_custom_value=True,
-                )
-                dash_detail = gr.Markdown("")
-                dash_seg_table = gr.Dataframe(
-                    headers=["id", "speaker", "start", "end", "text", "tts"],
-                    label="Segments",
-                    wrap=True,
-                )
-                seg_pick = gr.CheckboxGroup(
-                    choices=[],
-                    label="Câu cần gen lại TTS (chỉ khi gen từng câu)",
-                )
-                dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
-                dash_vieneu = gr.Textbox(
-                    label="VieNeu API key (re-TTS)",
-                    type="password",
-                    value=_tts_prefs().get("vieneu_api_key") or "",
-                )
-                with gr.Row():
-                    dash_stt_btn = gr.Button("Chạy lại STT")
-                    dash_tts_all_btn = gr.Button("Gen TTS toàn bộ")
-                    dash_tts_pick_btn = gr.Button("Gen TTS các câu đã chọn")
-                    dash_final_btn = gr.Button("Final (khóa job)", variant="primary")
-                dash_status = gr.Textbox(label="Status", lines=2)
+                with gr.Group(visible=False, elem_id="dash-detail") as dash_panel:
+                    with gr.Row():
+                        dash_detail = gr.Markdown("Click một dòng trong bảng để mở chi tiết.")
+                        dash_close = gr.Button("Đóng")
+                    dash_status = gr.Textbox(label="Status", lines=1)
+                    with gr.Row():
+                        dash_stt_btn = gr.Button("Chạy lại STT")
+                        dash_tts_all_btn = gr.Button("Gen TTS toàn bộ")
+                        dash_tts_one_btn = gr.Button("Gen lại câu đang chọn")
+                        dash_final_btn = gr.Button("Final", variant="primary")
+                    dash_utt_label = gr.Markdown("")
+                    dash_seg_table = gr.Dataframe(
+                        headers=["id", "speaker", "start", "end", "text", "tts"],
+                        label="Câu — click để chọn gen lại",
+                        wrap=True,
+                    )
+                    with gr.Accordion("Chọn nhiều câu / token / xóa", open=False):
+                        seg_pick = gr.CheckboxGroup(
+                            choices=[],
+                            label="Nhiều câu (tuỳ chọn)",
+                        )
+                        dash_tts_pick_btn = gr.Button("Gen TTS các câu đã tick")
+                        dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
+                        dash_vieneu = gr.Textbox(
+                            label="VieNeu API key (re-TTS)",
+                            type="password",
+                            value=_tts_prefs().get("vieneu_api_key") or "",
+                        )
+                        dash_confirm_del = gr.Checkbox(
+                            label="Xác nhận xóa hết job (kể cả Final)",
+                            value=False,
+                        )
+                        dash_delete_btn = gr.Button("Xóa job", variant="stop")
 
+                select_outs = [
+                    dash_detail,
+                    dash_seg_table,
+                    seg_pick,
+                    dash_stt_btn,
+                    dash_tts_all_btn,
+                    dash_tts_pick_btn,
+                    dash_tts_one_btn,
+                    dash_final_btn,
+                    dash_panel,
+                    dash_job,
+                    dash_utt,
+                    dash_utt_label,
+                    dash_status,
+                ]
                 dash_action_outputs = [
                     dash_status,
                     dash_detail,
@@ -972,26 +1098,29 @@ def build_ui():
                     dash_stt_btn,
                     dash_tts_all_btn,
                     dash_tts_pick_btn,
+                    dash_tts_one_btn,
                     dash_final_btn,
+                    dash_panel,
+                    dash_job,
+                    dash_utt,
+                    dash_utt_label,
                 ]
 
                 dash_refresh.click(dash_refresh_table, outputs=[dash_table])
-                dash_refresh.click(refresh_jobs, outputs=[dash_job])
                 demo.load(dash_refresh_table, outputs=[dash_table])
-                dash_job.change(
-                    dash_select_job,
-                    inputs=[dash_job],
-                    outputs=[
-                        dash_detail,
-                        dash_seg_table,
-                        seg_pick,
-                        dash_stt_btn,
-                        dash_tts_all_btn,
-                        dash_tts_pick_btn,
-                        dash_final_btn,
-                        dash_status,
-                    ],
-                )
+                try:
+                    dash_table.select(dash_table_select, outputs=select_outs)
+                except Exception:
+                    pass
+                dash_close.click(dash_close_panel, outputs=dash_action_outputs)
+                try:
+                    dash_seg_table.select(
+                        dash_seg_select,
+                        inputs=[dash_job],
+                        outputs=[dash_utt, dash_utt_label],
+                    )
+                except Exception:
+                    pass
                 dash_stt_btn.click(
                     dash_rerun_stt,
                     inputs=[dash_job, dash_hf],
@@ -1002,15 +1131,25 @@ def build_ui():
                     inputs=[dash_job, dash_vieneu],
                     outputs=dash_action_outputs,
                 )
+                dash_tts_one_btn.click(
+                    dash_rerun_tts_pick,
+                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt],
+                    outputs=dash_action_outputs,
+                )
                 dash_tts_pick_btn.click(
                     dash_rerun_tts_pick,
-                    inputs=[dash_job, dash_vieneu, seg_pick],
+                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt],
                     outputs=dash_action_outputs,
                 )
                 dash_final_btn.click(
                     dash_finalize,
                     inputs=[dash_job],
                     outputs=dash_action_outputs,
+                )
+                dash_delete_btn.click(
+                    dash_delete_job,
+                    inputs=[dash_job, dash_confirm_del],
+                    outputs=[*dash_action_outputs, dash_table, dash_confirm_del],
                 )
     return demo
 

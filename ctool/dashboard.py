@@ -9,6 +9,7 @@ from ctool.job_meta import read_meta
 from ctool.store import (
     JOB_STATUS_FINAL,
     assert_job_editable,
+    delete_job,
     get_job,
     job_dir,
     list_jobs_dashboard,
@@ -158,3 +159,11 @@ def finalize_job(job_id: str | None, root: str | Path | None = None) -> str:
         return f"Job {jid} đã Final rồi."
     mark_job_final(jid, root)
     return f"Đã Final job {jid} — không chạy lại STT/TTS."
+
+
+def purge_job(job_id: str | None, root: str | Path | None = None) -> str:
+    jid = (job_id or "").strip()
+    if not jid:
+        raise ValueError("Chọn job.")
+    delete_job(jid, root)
+    return f"Đã xóa hết job {jid}: DB + folder (transcript, TTS, source)."

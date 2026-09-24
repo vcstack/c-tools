@@ -106,7 +106,7 @@ Colab: mount Drive, then `export CTOOL_STORE=/content/drive/MyDrive/ctool`. Skip
 
 `ctool.db` holds `jobs`, `speakers`, `segments`. TTS writes `03_tts.json` + `tts/*.mp3` in the same job folder.
 
-Colab tab **Dashboard**: job status (STT / TTS / **Final**), re-run STT, re-TTS (all or selected utterances), **Final** locks further STT/TTS. Job folder also stores `00_job_meta.json` and `source.*` (local upload) for re-STT.
+Colab UI: Soft theme, STT advanced options collapsed, TTS voice map after job pick, Dashboard click-a-row detail panel. **Final** locks STT/TTS. **Xóa** (cả job Final) gỡ hết hàng DB + folder job. Job folder also stores `00_job_meta.json` and `source.*` (local upload) for re-STT.
 
 ## VieNeu TTS (V4 cloud)
 

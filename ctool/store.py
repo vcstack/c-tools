@@ -156,6 +156,74 @@ def mark_job_final(job_id: str, root: str | Path | None = None) -> None:
         conn.commit()
 
 
+def _safe_job_id(job_id: str) -> str:
+    jid = (job_id or "").strip()
+    if not jid or "/" in jid or "\\" in jid or ".." in jid:
+        raise ValueError("job_id không hợp lệ.")
+    return jid
+
+
+def delete_job(job_id: str, root: str | Path | None = None) -> dict[str, Any]:
+    """Erase job even if Final: SQLite rows + entire job folder. Nothing kept."""
+    import shutil
+
+    jid = _safe_job_id(job_id)
+    row = get_job(jid, root)
+    folder = job_dir(jid, root)
+    extras: list[Path] = []
+    if row:
+        for key in ("transcript_path", "tts_path", "source_path"):
+            raw = row.get(key)
+            if raw:
+                extras.append(Path(str(raw)))
+
+    if db_path(root).is_file():
+        with connect(root) as conn:
+            conn.execute("DELETE FROM segments WHERE job_id = ?", (jid,))
+            conn.execute("DELETE FROM speakers WHERE job_id = ?", (jid,))
+            conn.execute("DELETE FROM jobs WHERE id = ?", (jid,))
+            conn.commit()
+
+    errors: list[str] = []
+    if folder.is_dir():
+        try:
+            shutil.rmtree(folder)
+        except OSError as exc:
+            errors.append(f"folder: {exc}")
+
+    store = resolve_store_root(root).resolve()
+    jobs_root = (store / "jobs").resolve()
+    folder_resolved = folder.resolve()
+    for path in extras:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved == folder_resolved or folder_resolved in resolved.parents:
+            continue
+        if jobs_root not in resolved.parents and resolved.parent != jobs_root:
+            continue
+        try:
+            if resolved.is_file():
+                resolved.unlink()
+            elif resolved.is_dir():
+                shutil.rmtree(resolved)
+        except OSError as exc:
+            errors.append(f"{resolved.name}: {exc}")
+
+    leftover = folder.is_dir()
+    if leftover:
+        errors.append("folder còn lại trên disk")
+    if db_path(root).is_file() and get_job(jid, root):
+        errors.append("còn dòng trong DB")
+        leftover = True
+    if leftover:
+        raise RuntimeError(
+            f"Xóa job {jid} chưa sạch: " + "; ".join(errors or ["còn file"])
+        )
+    return {"job_id": jid, "deleted": True}
+
+
 def _archive_source_media(source: str | Path | None, folder: Path) -> str | None:
     if not source:
         return None
