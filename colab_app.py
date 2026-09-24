@@ -308,34 +308,96 @@ def dash_refresh_table():
     return jobs_overview_table()
 
 
-def _dash_action_response(message: str, job_id):
-    parts = dash_select_job(job_id)
+MAX_SEG_ROWS = 8
+
+
+def _dash_action_response(message: str, job_id, page=0):
+    parts = dash_select_job(job_id, page)
     return (message,) + tuple(parts[:-1])
 
 
-def dash_select_job(job_id):
+def _seg_row_updates(job_id, page=0):
     import gradio as gr
-    from ctool.dashboard import job_detail_text, segment_choices
-    from ctool.store import get_job, JOB_STATUS_FINAL
+    from ctool.segments import list_segment_records
+    from ctool.store import JOB_STATUS_FINAL, get_job
 
     jid = (job_id or "").strip()
-    detail = job_detail_text(jid) if jid else "Click một dòng trong bảng để mở chi tiết."
-    seg_rows = []
-    choices = segment_choices(jid) if jid else []
+    locked = False
+    recs: list = []
     if jid:
+        row = get_job(jid)
+        locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
         try:
-            from ctool.store import segment_dashboard_rows
-
-            seg_rows = segment_dashboard_rows(jid)
+            recs = list_segment_records(jid)
         except Exception:
-            seg_rows = []
+            recs = []
+    page = max(0, int(page or 0))
+    max_page = max(0, (len(recs) - 1) // MAX_SEG_ROWS) if recs else 0
+    page = min(page, max_page)
+    start = page * MAX_SEG_ROWS
+    shown = recs[start : start + MAX_SEG_ROWS]
+    info = (
+        f"Câu **{start + 1}–{start + len(shown)}** / {len(recs)} (trang {page + 1}/{max_page + 1})"
+        if recs
+        else "Chưa có câu."
+    )
+    prefs = _tts_prefs()
+    voices, _ok = fetch_voice_catalog(prefs.get("vieneu_api_key"))
+    fallback = (prefs.get("voice_0") or (voices[0] if voices else "Ngọc Lan")).strip()
+    updates: list = [info, page]
+    for i in range(MAX_SEG_ROWS):
+        if i < len(shown):
+            r = shown[i]
+            voice = r.get("voice") or fallback
+            row_voices = list(voices)
+            if voice not in row_voices:
+                row_voices = [voice] + row_voices
+            updates.extend(
+                [
+                    gr.update(visible=True),
+                    gr.update(value=r["id"]),
+                    gr.update(
+                        value=f"**{r['id']}** · {r['speaker']} · {r['start']:.1f}s · {r['tts']}"
+                    ),
+                    gr.update(value=r["text"], interactive=False),
+                    gr.update(choices=row_voices, value=voice, visible=True, interactive=not locked),
+                    gr.update(visible=True, interactive=not locked),
+                    gr.update(visible=False),
+                    gr.update(visible=True, interactive=not locked),
+                    gr.update(visible=True, interactive=not locked),
+                ]
+            )
+        else:
+            updates.extend(
+                [
+                    gr.update(visible=False),
+                    gr.update(value=""),
+                    gr.update(value=""),
+                    gr.update(value=""),
+                    gr.update(visible=False),
+                    gr.update(visible=False),
+                    gr.update(visible=False),
+                    gr.update(visible=False),
+                    gr.update(visible=False),
+                ]
+            )
+    return tuple(updates)
+
+
+def dash_select_job(job_id, page=0):
+    import gradio as gr
+    from ctool.dashboard import job_detail_text, segment_choices
+    from ctool.store import JOB_STATUS_FINAL, get_job
+
+    jid = (job_id or "").strip()
+    detail = job_detail_text(jid) if jid else "Chọn job rồi bấm **Mở chi tiết**."
+    choices = segment_choices(jid) if jid else []
     row = get_job(jid) if jid else None
     locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
     lock_msg = "Job đã Final — STT/TTS bị khóa." if locked else ""
     btn = gr.update(interactive=not locked)
     return (
         detail,
-        seg_rows,
         gr.update(choices=choices, value=[]),
         btn,
         btn,
@@ -346,8 +408,13 @@ def dash_select_job(job_id):
         jid,
         "",
         "",
+        *_seg_row_updates(jid, page),
         lock_msg,
     )
+
+
+def dash_open_job(job_id):
+    return dash_select_job(job_id, 0)
 
 
 def _as_table_rows(data) -> list:
@@ -383,7 +450,7 @@ def dash_table_select(evt, table_data=None):
                 jid = val.strip()
     import gradio as gr
 
-    parts = dash_select_job(jid)
+    parts = dash_select_job(jid, 0)
     return tuple(parts) + (gr.update(value=jid or None),)
 
 
@@ -445,7 +512,7 @@ def dash_rerun_stt(job_id, hf_token):
     return _dash_action_response(f"Re-STT xong · job {jid}", job_id)
 
 
-def _dash_tts(job_id, api_key, selected_ids, all_segments: bool):
+def _dash_tts(job_id, api_key, selected_ids, all_segments: bool, voice: str | None = None):
     from ctool.dashboard import voice_map_from_prefs
     from ctool.settings import load_settings
     from ctool.store import assert_job_editable, load_transcript
@@ -459,6 +526,7 @@ def _dash_tts(job_id, api_key, selected_ids, all_segments: bool):
     payload = load_transcript(jid)
     two = str(prefs.get("tts_count") or "1") == "2"
     mapping = voice_map_from_prefs(prefs, payload, two)
+    chosen = (voice or "").strip()
     only_ids = None
     if not all_segments:
         only_ids = []
@@ -471,30 +539,94 @@ def _dash_tts(job_id, api_key, selected_ids, all_segments: bool):
     run_vieneu_tts(
         api_key,
         job_id=jid,
-        default_voice=prefs.get("voice_0") or "Ngọc Lan",
-        voice_map=mapping,
-        only_speakers=list(mapping.keys()),
+        default_voice=chosen or prefs.get("voice_0") or "Ngọc Lan",
+        voice_map=None if chosen else mapping,
+        only_speakers=None if chosen else list(mapping.keys()),
+        single_voice=chosen or None,
         only_item_ids=only_ids,
     )
 
 
-def dash_rerun_tts_all(job_id, api_key):
+def dash_rerun_tts_all(job_id, api_key, voice=None):
     try:
-        _dash_tts(job_id, api_key, [], True)
-        msg = "Gen TTS toàn bộ xong."
+        _dash_tts(job_id, api_key, [], True, voice=voice)
+        msg = f"Gen TTS toàn bộ xong · {(voice or '').strip() or 'map giọng settings'}."
     except Exception as exc:
         return _dash_action_response(str(exc), job_id)
     return _dash_action_response(msg, job_id)
 
 
-def dash_rerun_tts_pick(job_id, api_key, selected, utt_id=None):
+def dash_edit_seg():
+    import gradio as gr
+
+    return gr.update(interactive=True), gr.update(visible=True)
+
+
+def dash_save_seg(job_id, uid, text, page):
+    from ctool.segments import update_segment_text
+
+    jid = (job_id or "").strip()
+    try:
+        update_segment_text(jid, (uid or "").strip(), text)
+        msg = f"Đã lưu {(uid or '').strip()}."
+    except Exception as exc:
+        return _dash_action_response(str(exc), jid, page)
+    return _dash_action_response(msg, jid, page)
+
+
+def dash_del_seg(job_id, uid, page):
+    from ctool.segments import delete_segment
+
+    jid = (job_id or "").strip()
+    try:
+        delete_segment(jid, (uid or "").strip())
+        msg = f"Đã xóa {(uid or '').strip()}."
+    except Exception as exc:
+        return _dash_action_response(str(exc), jid, page)
+    return _dash_action_response(msg, jid, page)
+
+
+def dash_tts_seg(job_id, api_key, uid, voice, page):
+    jid = (job_id or "").strip()
+    try:
+        _dash_tts(jid, api_key, [(uid or "").strip()], False, voice=voice)
+        msg = f"TTS {(uid or '').strip()} · {(voice or '').strip() or 'giọng mặc định'} xong."
+    except Exception as exc:
+        return _dash_action_response(str(exc), jid, page)
+    return _dash_action_response(msg, jid, page)
+
+
+def dash_page_nav(job_id, page, delta):
+    from ctool.segments import list_segment_records
+
+    jid = (job_id or "").strip()
+    recs = []
+    if jid:
+        try:
+            recs = list_segment_records(jid)
+        except Exception:
+            recs = []
+    max_page = max(0, (len(recs) - 1) // MAX_SEG_ROWS) if recs else 0
+    p = min(max_page, max(0, int(page or 0) + int(delta)))
+    return _dash_action_response("", jid, p)
+
+
+def dash_page_prev(job_id, page):
+    return dash_page_nav(job_id, page, -1)
+
+
+def dash_page_next(job_id, page):
+    return dash_page_nav(job_id, page, 1)
+
+
+def dash_rerun_tts_pick(job_id, api_key, selected, utt_id=None, voice=None):
     picks = list(selected or [])
     uid = (utt_id or "").strip()
     if not picks and uid:
         picks = [uid]
     try:
-        _dash_tts(job_id, api_key, picks, False)
-        msg = f"Gen lại {len(picks)} câu xong."
+        _dash_tts(job_id, api_key, picks, False, voice=voice)
+        msg = f"Gen lại {len(picks)} câu xong · {(voice or '').strip() or 'map giọng settings'}."
     except Exception as exc:
         return _dash_action_response(str(exc), job_id)
     return _dash_action_response(msg, job_id)
@@ -1065,8 +1197,8 @@ def build_ui():
 
             with gr.Tab("Dashboard"):
                 gr.Markdown(
-                    "Chọn job (dropdown hoặc click ô **job_id** trên bảng) → chi tiết bên dưới. "
-                    "**Xóa** nằm ngay hàng nút. **Final** chỉ khóa STT/TTS."
+                    "Chọn job → **Mở chi tiết**. Mỗi câu có **Sửa / Lưu / Gen TTS / Xóa câu**. "
+                    "**Final** khóa STT/TTS/sửa. Xóa job (cả Final) ở hàng nút trên."
                 )
                 dash_job = gr.Textbox(visible=False, value="")
                 dash_utt = gr.Textbox(visible=False, value="")
@@ -1102,11 +1234,57 @@ def build_ui():
                         )
                         dash_delete_btn = gr.Button("Xóa job", variant="stop", scale=1)
                     dash_utt_label = gr.Markdown("")
-                    dash_seg_table = gr.Dataframe(
-                        headers=["id", "speaker", "start", "end", "text", "tts"],
-                        label="Câu — click để chọn gen lại",
-                        wrap=True,
+                    dash_page = gr.State(0)
+                    _dash_voices, _ = fetch_voice_catalog(_tts_prefs().get("vieneu_api_key"))
+                    dash_vieneu = gr.Textbox(
+                        label="VieNeu API key (re-TTS)",
+                        type="password",
+                        value=_tts_prefs().get("vieneu_api_key") or "",
                     )
+                    dash_voice = gr.Dropdown(
+                        choices=_dash_voices or ["Ngọc Lan"],
+                        value=_tts_prefs().get("voice_0")
+                        if _tts_prefs().get("voice_0") in (_dash_voices or [])
+                        else ((_dash_voices or ["Ngọc Lan"])[0]),
+                        label="Giọng mặc định (Gen TTS toàn bộ / chưa chọn trên câu)",
+                        allow_custom_value=True,
+                    )
+                    with gr.Row():
+                        dash_seg_info = gr.Markdown("Chưa có câu.")
+                        dash_prev = gr.Button("← Trước")
+                        dash_next = gr.Button("Sau →")
+                    seg_rows_ui: list = []
+                    seg_uids: list = []
+                    seg_labels: list = []
+                    seg_texts: list = []
+                    seg_voices: list = []
+                    seg_edit_btns: list = []
+                    seg_save_btns: list = []
+                    seg_tts_btns: list = []
+                    seg_del_btns: list = []
+                    for _idx in range(MAX_SEG_ROWS):
+                        with gr.Group(visible=False) as seg_row:
+                            seg_rows_ui.append(seg_row)
+                            with gr.Row():
+                                seg_labels.append(gr.Markdown(""))
+                                seg_uids.append(gr.Textbox(visible=False, value=""))
+                            seg_texts.append(
+                                gr.Textbox(label="Nội dung", lines=2, interactive=False)
+                            )
+                            with gr.Row():
+                                seg_voices.append(
+                                    gr.Dropdown(
+                                        choices=_dash_voices or ["Ngọc Lan"],
+                                        value=(_dash_voices or ["Ngọc Lan"])[0],
+                                        label="Giọng",
+                                        allow_custom_value=True,
+                                        scale=2,
+                                    )
+                                )
+                                seg_edit_btns.append(gr.Button("Sửa", size="sm"))
+                                seg_save_btns.append(gr.Button("Lưu", size="sm", visible=False))
+                                seg_tts_btns.append(gr.Button("Gen TTS", size="sm"))
+                                seg_del_btns.append(gr.Button("Xóa câu", size="sm", variant="stop"))
                     with gr.Accordion("Nhiều câu / token", open=False):
                         seg_pick = gr.CheckboxGroup(
                             choices=[],
@@ -1114,15 +1292,24 @@ def build_ui():
                         )
                         dash_tts_pick_btn = gr.Button("Gen TTS các câu đã tick")
                         dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
-                        dash_vieneu = gr.Textbox(
-                            label="VieNeu API key (re-TTS)",
-                            type="password",
-                            value=_tts_prefs().get("vieneu_api_key") or "",
-                        )
 
+                seg_row_outs = [
+                    x
+                    for i in range(MAX_SEG_ROWS)
+                    for x in (
+                        seg_rows_ui[i],
+                        seg_uids[i],
+                        seg_labels[i],
+                        seg_texts[i],
+                        seg_voices[i],
+                        seg_edit_btns[i],
+                        seg_save_btns[i],
+                        seg_tts_btns[i],
+                        seg_del_btns[i],
+                    )
+                ]
                 select_outs = [
                     dash_detail,
-                    dash_seg_table,
                     seg_pick,
                     dash_stt_btn,
                     dash_tts_all_btn,
@@ -1133,12 +1320,14 @@ def build_ui():
                     dash_job,
                     dash_utt,
                     dash_utt_label,
+                    dash_seg_info,
+                    dash_page,
+                    *seg_row_outs,
                     dash_status,
                 ]
                 dash_action_outputs = [
                     dash_status,
                     dash_detail,
-                    dash_seg_table,
                     seg_pick,
                     dash_stt_btn,
                     dash_tts_all_btn,
@@ -1149,23 +1338,51 @@ def build_ui():
                     dash_job,
                     dash_utt,
                     dash_utt_label,
+                    dash_seg_info,
+                    dash_page,
+                    *seg_row_outs,
                 ]
 
                 dash_refresh.click(dash_refresh_table, outputs=[dash_table])
                 dash_refresh.click(refresh_jobs, outputs=[dash_pick])
                 demo.load(dash_refresh_table, outputs=[dash_table])
-                dash_pick.change(dash_select_job, inputs=[dash_pick], outputs=select_outs)
-                dash_open.click(dash_select_job, inputs=[dash_pick], outputs=select_outs)
+                dash_pick.change(dash_open_job, inputs=[dash_pick], outputs=select_outs)
+                dash_open.click(dash_open_job, inputs=[dash_pick], outputs=select_outs)
                 dash_table.select(
                     dash_table_select,
                     inputs=[dash_table],
                     outputs=[*select_outs, dash_pick],
                 )
-                dash_seg_table.select(
-                    dash_seg_select,
-                    inputs=[dash_job],
-                    outputs=[dash_utt, dash_utt_label],
+                dash_prev.click(
+                    dash_page_prev,
+                    inputs=[dash_job, dash_page],
+                    outputs=dash_action_outputs,
                 )
+                dash_next.click(
+                    dash_page_next,
+                    inputs=[dash_job, dash_page],
+                    outputs=dash_action_outputs,
+                )
+                for i in range(MAX_SEG_ROWS):
+                    seg_edit_btns[i].click(
+                        dash_edit_seg,
+                        outputs=[seg_texts[i], seg_save_btns[i]],
+                    )
+                    seg_save_btns[i].click(
+                        dash_save_seg,
+                        inputs=[dash_job, seg_uids[i], seg_texts[i], dash_page],
+                        outputs=dash_action_outputs,
+                    )
+                    seg_del_btns[i].click(
+                        dash_del_seg,
+                        inputs=[dash_job, seg_uids[i], dash_page],
+                        outputs=dash_action_outputs,
+                    )
+                    seg_tts_btns[i].click(
+                        dash_tts_seg,
+                        inputs=[dash_job, dash_vieneu, seg_uids[i], seg_voices[i], dash_page],
+                        outputs=dash_action_outputs,
+                    )
                 dash_stt_btn.click(
                     dash_rerun_stt,
                     inputs=[dash_job, dash_hf],
@@ -1173,17 +1390,17 @@ def build_ui():
                 )
                 dash_tts_all_btn.click(
                     dash_rerun_tts_all,
-                    inputs=[dash_job, dash_vieneu],
+                    inputs=[dash_job, dash_vieneu, dash_voice],
                     outputs=dash_action_outputs,
                 )
                 dash_tts_one_btn.click(
                     dash_rerun_tts_pick,
-                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt],
+                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt, dash_voice],
                     outputs=dash_action_outputs,
                 )
                 dash_tts_pick_btn.click(
                     dash_rerun_tts_pick,
-                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt],
+                    inputs=[dash_job, dash_vieneu, seg_pick, dash_utt, dash_voice],
                     outputs=dash_action_outputs,
                 )
                 dash_final_btn.click(

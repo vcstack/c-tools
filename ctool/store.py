@@ -308,6 +308,9 @@ def save_transcript_job(
         "transcript": str(transcript_path),
         "db": str(root / "ctool.db"),
     }
+    from ctool.segments import ensure_segment_ids
+
+    stored, _ = ensure_segment_ids(stored)
     transcript_path.write_text(
         json.dumps(stored, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -500,8 +503,10 @@ def segment_dashboard_rows(job_id: str, root: str | Path | None = None) -> list[
     manifest = load_tts_manifest(job_id, root) or {}
     done_ids = {it.get("id") for it in (manifest.get("items") or []) if it.get("id")}
     rows: list[list] = []
+    from ctool.segments import segment_uid
+
     for i, seg in enumerate(payload.get("segments") or []):
-        uid = f"u{i:04d}"
+        uid = segment_uid(seg, i)
         text = (seg.get("text") or "").strip()
         if not text:
             continue

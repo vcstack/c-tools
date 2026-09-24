@@ -124,16 +124,17 @@ def run_vieneu_tts(
     existing = load_tts_manifest(jid, root) or {}
     regen_ids = {x.strip() for x in (only_item_ids or []) if (x or "").strip()} or None
     partial = bool(regen_ids)
-    if partial and not existing.get("items"):
-        raise ValueError("Chưa có TTS — gen toàn bộ trước khi gen lại từng câu.")
 
+    from ctool.segments import ensure_segment_ids, segment_uid
+
+    payload, _ = ensure_segment_ids(payload)
     allow = {s for s in (only_speakers or []) if s} or None
     new_by_id: dict[str, dict[str, Any]] = {}
     for i, seg in enumerate(payload.get("segments") or []):
         text = (seg.get("text") or "").strip()
         if not text:
             continue
-        uid = f"u{i:04d}"
+        uid = segment_uid(seg, i)
         if regen_ids and uid not in regen_ids:
             continue
         speaker = seg.get("speaker") or "SPEAKER_00"
