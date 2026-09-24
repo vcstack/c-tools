@@ -332,7 +332,6 @@ def dash_select_job(job_id):
     row = get_job(jid) if jid else None
     locked = bool(row and row.get("status") == JOB_STATUS_FINAL)
     lock_msg = "Job đã Final — STT/TTS bị khóa." if locked else ""
-    show = bool(row)
     btn = gr.update(interactive=not locked)
     return (
         detail,
@@ -343,7 +342,7 @@ def dash_select_job(job_id):
         btn,
         btn,
         btn,
-        gr.update(visible=show),
+        gr.update(visible=True),
         jid,
         "",
         "",
@@ -351,19 +350,41 @@ def dash_select_job(job_id):
     )
 
 
-def dash_table_select(evt):
-    rows = dash_refresh_table()
-    if evt is None or not rows:
-        return dash_select_job(None)
-    idx = getattr(evt, "index", None)
-    row_i = idx[0] if isinstance(idx, (list, tuple)) else idx
-    try:
-        row_i = int(row_i)
-    except (TypeError, ValueError):
-        return dash_select_job(None)
-    if row_i < 0 or row_i >= len(rows):
-        return dash_select_job(None)
-    return dash_select_job(rows[row_i][0])
+def _as_table_rows(data) -> list:
+    if data is None:
+        return []
+    if hasattr(data, "values"):
+        try:
+            return data.values.tolist()
+        except Exception:
+            pass
+    if isinstance(data, dict):
+        if "data" in data:
+            return list(data.get("data") or [])
+        cols = data.get("value")
+        if isinstance(cols, list):
+            return cols
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def dash_table_select(evt, table_data=None):
+    rows = _as_table_rows(table_data) or dash_refresh_table()
+    jid = None
+    if evt is not None:
+        idx = getattr(evt, "index", None)
+        row_i = idx[0] if isinstance(idx, (list, tuple)) else idx
+        try:
+            jid = rows[int(row_i)][0]
+        except (TypeError, ValueError, IndexError):
+            val = getattr(evt, "value", None)
+            if isinstance(val, str) and val.strip():
+                jid = val.strip()
+    import gradio as gr
+
+    parts = dash_select_job(jid)
+    return tuple(parts) + (gr.update(value=jid or None),)
 
 
 def dash_close_panel():
@@ -496,18 +517,35 @@ def dash_delete_job(job_id, confirm):
     keep_confirm = gr.update()
     jid = (job_id or "").strip()
     if not jid:
-        return (*_dash_action_response("Click một job trên bảng trước.", job_id), dash_refresh_table(), keep_confirm)
+        return (
+            *_dash_action_response("Chọn job rồi bấm Mở chi tiết.", job_id),
+            dash_refresh_table(),
+            keep_confirm,
+            refresh_jobs(),
+        )
     if not confirm:
         return (
             *_dash_action_response("Tick **Xác nhận xóa** rồi bấm Xóa job.", job_id),
             dash_refresh_table(),
             keep_confirm,
+            refresh_jobs(),
         )
     try:
         msg = purge_job(jid)
     except Exception as exc:
-        return (*_dash_action_response(str(exc), job_id), dash_refresh_table(), keep_confirm)
-    return (*_dash_action_response(msg, None), dash_refresh_table(), gr.update(value=False))
+        return (
+            *_dash_action_response(str(exc), job_id),
+            dash_refresh_table(),
+            keep_confirm,
+            refresh_jobs(),
+        )
+    ids = _job_ids()
+    return (
+        *_dash_action_response(msg, None),
+        dash_refresh_table(),
+        gr.update(value=False),
+        gr.update(choices=ids, value=None),
+    )
 
 
 def _job_ids() -> list[str]:
@@ -1027,37 +1065,49 @@ def build_ui():
 
             with gr.Tab("Dashboard"):
                 gr.Markdown(
-                    "Click **một dòng** để mở chi tiết. **Final** khóa STT/TTS. "
-                    "**Xóa** được kể cả Final."
+                    "Chọn job (dropdown hoặc click ô **job_id** trên bảng) → chi tiết bên dưới. "
+                    "**Xóa** nằm ngay hàng nút. **Final** chỉ khóa STT/TTS."
                 )
                 dash_job = gr.Textbox(visible=False, value="")
                 dash_utt = gr.Textbox(visible=False, value="")
                 with gr.Row():
-                    dash_refresh = gr.Button("Làm mới", size="sm")
+                    dash_pick = gr.Dropdown(
+                        choices=_job_ids(),
+                        label="Chọn job",
+                        allow_custom_value=True,
+                        scale=3,
+                    )
+                    dash_open = gr.Button("Mở chi tiết", variant="primary", scale=1)
+                    dash_refresh = gr.Button("Làm mới", scale=1)
                 dash_table = gr.Dataframe(
                     headers=["job_id", "file", "trạng thái", "segments", "tts_câu", "created"],
-                    label="Jobs — click một dòng",
+                    label="Jobs (click ô job_id cũng mở được)",
                     interactive=True,
                     wrap=True,
                     elem_id="dash-table-wrap",
                 )
-                with gr.Group(visible=False, elem_id="dash-detail") as dash_panel:
-                    with gr.Row():
-                        dash_detail = gr.Markdown("Click một dòng trong bảng để mở chi tiết.")
-                        dash_close = gr.Button("Đóng")
+                with gr.Group(elem_id="dash-detail") as dash_panel:
+                    dash_detail = gr.Markdown("Chọn job rồi bấm **Mở chi tiết**.")
                     dash_status = gr.Textbox(label="Status", lines=1)
                     with gr.Row():
                         dash_stt_btn = gr.Button("Chạy lại STT")
                         dash_tts_all_btn = gr.Button("Gen TTS toàn bộ")
                         dash_tts_one_btn = gr.Button("Gen lại câu đang chọn")
                         dash_final_btn = gr.Button("Final", variant="primary")
+                    with gr.Row():
+                        dash_confirm_del = gr.Checkbox(
+                            label="Xác nhận xóa hết (kể cả Final)",
+                            value=False,
+                            scale=2,
+                        )
+                        dash_delete_btn = gr.Button("Xóa job", variant="stop", scale=1)
                     dash_utt_label = gr.Markdown("")
                     dash_seg_table = gr.Dataframe(
                         headers=["id", "speaker", "start", "end", "text", "tts"],
                         label="Câu — click để chọn gen lại",
                         wrap=True,
                     )
-                    with gr.Accordion("Chọn nhiều câu / token / xóa", open=False):
+                    with gr.Accordion("Nhiều câu / token", open=False):
                         seg_pick = gr.CheckboxGroup(
                             choices=[],
                             label="Nhiều câu (tuỳ chọn)",
@@ -1069,11 +1119,6 @@ def build_ui():
                             type="password",
                             value=_tts_prefs().get("vieneu_api_key") or "",
                         )
-                        dash_confirm_del = gr.Checkbox(
-                            label="Xác nhận xóa hết job (kể cả Final)",
-                            value=False,
-                        )
-                        dash_delete_btn = gr.Button("Xóa job", variant="stop")
 
                 select_outs = [
                     dash_detail,
@@ -1107,20 +1152,20 @@ def build_ui():
                 ]
 
                 dash_refresh.click(dash_refresh_table, outputs=[dash_table])
+                dash_refresh.click(refresh_jobs, outputs=[dash_pick])
                 demo.load(dash_refresh_table, outputs=[dash_table])
-                try:
-                    dash_table.select(dash_table_select, outputs=select_outs)
-                except Exception:
-                    pass
-                dash_close.click(dash_close_panel, outputs=dash_action_outputs)
-                try:
-                    dash_seg_table.select(
-                        dash_seg_select,
-                        inputs=[dash_job],
-                        outputs=[dash_utt, dash_utt_label],
-                    )
-                except Exception:
-                    pass
+                dash_pick.change(dash_select_job, inputs=[dash_pick], outputs=select_outs)
+                dash_open.click(dash_select_job, inputs=[dash_pick], outputs=select_outs)
+                dash_table.select(
+                    dash_table_select,
+                    inputs=[dash_table],
+                    outputs=[*select_outs, dash_pick],
+                )
+                dash_seg_table.select(
+                    dash_seg_select,
+                    inputs=[dash_job],
+                    outputs=[dash_utt, dash_utt_label],
+                )
                 dash_stt_btn.click(
                     dash_rerun_stt,
                     inputs=[dash_job, dash_hf],
@@ -1149,7 +1194,7 @@ def build_ui():
                 dash_delete_btn.click(
                     dash_delete_job,
                     inputs=[dash_job, dash_confirm_del],
-                    outputs=[*dash_action_outputs, dash_table, dash_confirm_del],
+                    outputs=[*dash_action_outputs, dash_table, dash_confirm_del, dash_pick],
                 )
     return demo
 
