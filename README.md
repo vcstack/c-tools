@@ -46,6 +46,17 @@ Open [`CTool_Colab.ipynb`](./CTool_Colab.ipynb) on Colab (GPU T4).
 
 Do not install Gradio into `ctool-venv` (breaks whisper-jax pins). Local optional UI: `python app.py`.
 
+## TTS Studio (cửa sổ Windows)
+
+Xem [`tts_studio.md`](./tts_studio.md).
+
+```bat
+python -m pip install -r requirements-desktop.txt
+python tts_studio.py
+```
+
+EXE: `build-tts-studio.cmd` → `dist\CtoolTTS\CtoolTTS.exe`
+
 ## Install
 
 ```bash
@@ -149,6 +160,11 @@ Transcript stays in the original language (`task=transcribe`). Speakers come fro
 │   ├── alignment.py
 │   ├── pipeline.py
 │   └── config.py
+├── tts_studio.py
+├── tts_studio/
+├── tts_studio.md
+├── requirements-desktop.txt
+├── build-tts-studio.cmd
 ├── ctool/
 ├── input/
 ├── output/

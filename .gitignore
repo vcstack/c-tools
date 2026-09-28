@@ -8,3 +8,8 @@ whisper_api_audio_parts/
 output/*.json
 !output/.gitkeep
 data/
+dist/
+build/
+*.spec
+*.tts/
+*.json.tts.json
