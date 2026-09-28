@@ -25,3 +25,13 @@ Mở file trong `kich-ban\` (có `segments[].text`). Mỗi câu gen xong ghi nga
 - trạng thái: `<ten>.json.tts.json`
 
 Lỗi giữa chừng thì các câu trước vẫn giữ. Bấm **Gen chưa xong** để chạy tiếp.
+
+## Skill kịch bản (Cursor + Claude Code)
+
+Cùng một skill `kich-ban-truyen-ma`:
+
+- Cursor: `.cursor/skills/kich-ban-truyen-ma/`
+- Claude Code: `.claude/skills/kich-ban-truyen-ma/`
+
+Mở repo C-Tools trong Claude Code rồi bảo gen truyện / `/kich-ban-truyen-ma`. Claude.ai web không đọc folder này — dán `SKILL.md` vào Project instructions nếu dùng web.
+

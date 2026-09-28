@@ -9,7 +9,7 @@ description: >-
 
 # Kịch bản truyện ma (TTS + kênh riêng)
 
-Bản cho **Cursor**. Claude Code dùng file giống tại `.claude/skills/kich-ban-truyen-ma/SKILL.md` — giữ hai file cùng nội dung khi sửa.
+Bản cho **Claude Code**. Cursor dùng file giống tại `.cursor/skills/kich-ban-truyen-ma/SKILL.md` — giữ hai file cùng nội dung khi sửa.
 
 ## Khi nào làm gì
 
