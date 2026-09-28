@@ -967,10 +967,12 @@ def build_ui():
                                 ".mkv",
                                 ".mov",
                                 ".avi",
+                                ".webm",
                                 ".mp3",
                                 ".wav",
                                 ".m4a",
                                 ".flac",
+                                ".opus",
                             ],
                         )
                         auto_chunk_cb = gr.Checkbox(

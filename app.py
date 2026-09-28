@@ -240,10 +240,12 @@ def build_ui():
                                 ".mkv",
                                 ".mov",
                                 ".avi",
+                                ".webm",
                                 ".mp3",
                                 ".wav",
                                 ".m4a",
                                 ".flac",
+                                ".opus",
                             ],
                         )
                         cookies_text = gr.Textbox(
