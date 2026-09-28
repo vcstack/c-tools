@@ -82,10 +82,19 @@ def run_job(
     except ValueError as exc:
         return str(exc), "", None, None
 
-    token = (hf_token or "").strip() or None
+    from ctool.settings import load_settings, save_settings
+
+    token = (hf_token or "").strip()
+    if token:
+        save_settings(hf_token=token)
+    else:
+        token = (load_settings().get("hf_token") or "").strip() or (
+            os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or ""
+        ).strip()
     if token:
         os.environ["HF_TOKEN"] = token
         os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+    token = token or None
 
     out_dir = ROOT / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -217,6 +226,9 @@ def run_tts_job(job_id, json_file, api_key, tts_count, speaker_0, speaker_1, voi
 
 def build_ui():
     import gradio as gr
+    from ctool.settings import load_settings
+
+    prefs = load_settings()
 
     with gr.Blocks(title="C-tool") as demo:
         gr.Markdown("# C-tool")
@@ -258,9 +270,10 @@ def build_ui():
                             label="Dùng clip mẫu JFK (bỏ qua URL/file)", value=False
                         )
                         hf_token = gr.Textbox(
-                            label="Hugging Face token",
+                            label="Hugging Face token (lưu DB)",
                             type="password",
                             placeholder="Required when max speakers > 1",
+                            value=prefs.get("hf_token") or "",
                         )
                         model = gr.Dropdown(
                             ["tiny", "base", "small", "medium", "large-v2", "large-v3"],

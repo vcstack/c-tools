@@ -74,7 +74,15 @@ def resolve_hf_token() -> str | None:
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
     if token:
         token = token.strip()
-    return token or None
+    if token:
+        return token
+    try:
+        from ctool.settings import load_settings
+
+        saved = (load_settings().get("hf_token") or "").strip()
+        return saved or None
+    except Exception:
+        return None
 
 
 def resolve_compute_type(device: str, compute_type: str) -> str:

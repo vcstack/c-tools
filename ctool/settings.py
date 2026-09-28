@@ -10,6 +10,7 @@ from ctool.store import connect, resolve_store_root
 
 DEFAULTS = {
     "vieneu_api_key": "",
+    "hf_token": "",
     "voice_0": "Ngọc Lan",
     "voice_1": "Phạm Tuyên",
     "tts_count": "1",
@@ -45,6 +46,7 @@ def load_settings(root: str | Path | None = None) -> dict[str, Any]:
 def save_settings(
     *,
     vieneu_api_key: str | None = None,
+    hf_token: str | None = None,
     voice_0: str | None = None,
     voice_1: str | None = None,
     tts_count: str | int | None = None,
@@ -55,6 +57,8 @@ def save_settings(
     data = load_settings(root)
     if vieneu_api_key is not None:
         data["vieneu_api_key"] = vieneu_api_key.strip()
+    if hf_token is not None:
+        data["hf_token"] = hf_token.strip()
     if voice_0 is not None and str(voice_0).strip():
         data["voice_0"] = str(voice_0).strip()
     if voice_1 is not None and str(voice_1).strip():

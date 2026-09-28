@@ -231,7 +231,7 @@ def run_job(
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     env = pipeline_env(os.environ.copy())
-    token = (hf_token or "").strip()
+    token = _remember_hf_token(hf_token)
     env["HF_TOKEN"] = token
     env["HUGGING_FACE_HUB_TOKEN"] = token
 
@@ -538,7 +538,7 @@ def dash_rerun_stt(job_id, hf_token):
     except ValueError as exc:
         return _dash_action_response(str(exc), job_id)
     env = pipeline_env(os.environ.copy())
-    token = (hf_token or "").strip()
+    token = _remember_hf_token(hf_token)
     env["HF_TOKEN"] = token
     env["HUGGING_FACE_HUB_TOKEN"] = token
     code = subprocess.call(cmd, env=env, cwd=str(ROOT))
@@ -736,6 +736,17 @@ def _tts_prefs():
     from ctool.settings import load_settings
 
     return load_settings()
+
+
+def _remember_hf_token(token: str | None) -> str:
+    from ctool.settings import load_settings, save_settings
+
+    typed = (token or "").strip()
+    if typed:
+        save_settings(hf_token=typed)
+        return typed
+    saved = (load_settings().get("hf_token") or "").strip()
+    return saved or (os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or "").strip()
 
 
 def fetch_voice_catalog(api_key: str | None = None) -> tuple[list[str], bool]:
@@ -1023,7 +1034,11 @@ def build_ui():
                                 label="Hoặc upload cookies.txt",
                                 file_types=[".txt"],
                             )
-                            hf_token = gr.Textbox(label="Hugging Face token", type="password")
+                            hf_token = gr.Textbox(
+                                label="Hugging Face token (lưu DB)",
+                                type="password",
+                                value=_tts_prefs().get("hf_token") or "",
+                            )
                             model = gr.Dropdown(
                                 ["tiny", "base", "small", "medium", "large-v2", "large-v3"],
                                 value="medium",
@@ -1311,7 +1326,11 @@ def build_ui():
                                 type="password",
                                 value=_tts_prefs().get("vieneu_api_key") or "",
                             )
-                            dash_hf = gr.Textbox(label="HF token (re-STT)", type="password")
+                            dash_hf = gr.Textbox(
+                                label="HF token (re-STT, lưu DB)",
+                                type="password",
+                                value=_tts_prefs().get("hf_token") or "",
+                            )
 
                 seg_row_outs = [
                     x
