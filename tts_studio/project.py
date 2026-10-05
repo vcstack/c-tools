@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from ctool.tts_job import _concat_ffmpeg, clip_filename, find_clip
 from ctool.vieneu import synthesize
 
 STATUS_PENDING = "chưa"
@@ -53,6 +54,9 @@ class TtsProject:
         self.payload: dict[str, Any] = {"speakers": ["SPEAKER_00"], "segments": []}
         self.items: dict[str, dict[str, Any]] = {}
         self.voice = "Ngọc Lan"
+        self.final_path = ""
+        self.final_error = ""
+        self.merged_now: Path | None = None
 
     def segments(self) -> list[dict[str, Any]]:
         return [s for s in (self.payload.get("segments") or []) if isinstance(s, dict)]
@@ -106,18 +110,19 @@ class TtsProject:
                 self.items = saved.get("items") or {}
                 if saved.get("voice"):
                     self.voice = str(saved["voice"])
+                self.final_path = str(saved.get("final") or "")
             except Exception:
                 self.items = {}
         folder = audio_dir(path)
-        for seg in segs:
+        for i, seg in enumerate(segs):
             sid = str(seg["id"])
             st = self.items.setdefault(
                 sid, {"status": STATUS_PENDING, "audio": "", "error": ""}
             )
             audio = Path(st.get("audio") or "")
             if not audio.is_file():
-                guess = folder / f"{sid}.mp3"
-                if guess.is_file():
+                guess = find_clip(folder, i, sid)
+                if guess:
                     st["audio"] = str(guess)
                     st["status"] = STATUS_DONE
             if (
@@ -143,6 +148,7 @@ class TtsProject:
                 {
                     "json_path": str(self.json_path),
                     "voice": self.voice,
+                    "final": self.final_path,
                     "items": self.items,
                 },
                 ensure_ascii=False,
@@ -193,10 +199,12 @@ class TtsProject:
             self.mark(sid, STATUS_ERROR, audio="", error="Trống text")
             raise ValueError("Trống text")
         self.voice = voice
+        self._drop_final()
         self.mark(sid, STATUS_GEN)
         folder = audio_dir(self.json_path)
         folder.mkdir(parents=True, exist_ok=True)
-        dest = folder / f"{sid}.mp3"
+        index = self.ids().index(sid)
+        dest = folder / clip_filename(index, sid)
         try:
             path = synthesize(api_key, text, voice, dest=dest)
         except Exception as exc:
@@ -212,3 +220,56 @@ class TtsProject:
             voice=voice,
         )
         return path
+
+    def _drop_final(self) -> None:
+        dest = self.final_file()
+        self.final_path = ""
+        self.merged_now = None
+        if not dest:
+            return
+        for path in (dest, dest.with_suffix(".wav")):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+
+    def final_file(self) -> Path | None:
+        if not self.json_path:
+            return None
+        return self.json_path.with_name(self.json_path.stem + ".final.mp3")
+
+    def merge_final(self) -> Path | None:
+        """Ghép final chỉ khi mọi câu có text đã có file audio. Thứ tự theo JSON."""
+        self.final_error = ""
+        self.merged_now = None
+        if not self.json_path:
+            return None
+        folder = audio_dir(self.json_path)
+        files: list[Path] = []
+        for i, seg in enumerate(self.segments()):
+            text = (seg.get("text") or "").strip()
+            if not text:
+                continue
+            sid = str(seg["id"])
+            if self.status_of(sid) != STATUS_DONE:
+                return None
+            audio = self.audio_of(sid) or find_clip(folder, i, sid)
+            if not audio:
+                return None
+            files.append(audio)
+        if not files:
+            return None
+        dest = self.final_file()
+        if dest is None:
+            return None
+        merged = _concat_ffmpeg(files, dest)
+        if not merged:
+            self.final_error = "Đã lưu từng câu. Thiếu ffmpeg hoặc ghép final lỗi."
+            self.final_path = ""
+            self.flush_state()
+            return None
+        self.final_path = str(merged)
+        self.merged_now = merged
+        self.flush_state()
+        return merged

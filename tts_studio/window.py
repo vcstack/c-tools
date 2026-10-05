@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -325,12 +326,19 @@ class MainWindow(QMainWindow):
         self.project.voice = voice
         todo = self.project.todo(mode, self._selected)
         if not todo:
-            self._set_status("Không còn câu cần gen.")
+            merged = self.project.merge_final()
+            if merged:
+                self._set_status(f"Đủ câu. Đã ghép {merged.name}")
+            elif self.project.final_error:
+                self._set_status(self.project.final_error)
+            else:
+                self._set_status("Không còn câu cần gen.")
             return
         worker = GenWorker(self.project, key, voice, todo)
         thread = GenThread(worker)
         worker.progressed.connect(self._on_progress)
         worker.failed.connect(self._on_fail)
+        worker.need_key.connect(self._on_need_key, Qt.ConnectionType.QueuedConnection)
         worker.stopped.connect(self._on_stopped)
         worker.finished.connect(self._on_done)
         worker.failed.connect(thread.quit)
@@ -350,6 +358,29 @@ class MainWindow(QMainWindow):
         self.refresh_table()
         self._counts()
 
+    def _on_need_key(self, sid: str, msg: str) -> None:
+        self.refresh_table()
+        self._select_sid(sid)
+        self._set_status(f"{sid}: hết hạn mức token. Câu đã gen vẫn giữ.")
+        text, ok = QInputDialog.getText(
+            self,
+            "VieNeu hết hạn mức",
+            f"Câu {sid} dừng vì token hết hạn hoặc hết hạn mức.\n"
+            "Dán API key mới để chạy tiếp từ câu này. Không gen lại câu đã xong.\n\n"
+            f"{msg[:280]}",
+            QLineEdit.EchoMode.Password,
+        )
+        key = text.strip() if ok else ""
+        if not self._worker:
+            return
+        if not key:
+            self._worker.supply_key(None)
+            return
+        self.api_edit.setText(key)
+        save_prefs(key, self.voice_box.currentText().strip())
+        self._set_status(f"Đổi key, chạy tiếp từ {sid}.")
+        self._worker.supply_key(key)
+
     def _on_fail(self, sid: str, msg: str) -> None:
         self.refresh_table()
         self._counts()
@@ -358,11 +389,18 @@ class MainWindow(QMainWindow):
     def _on_stopped(self) -> None:
         self.refresh_table()
         self._counts()
-        self._set_status("Đã dừng. Câu xong trước đó vẫn giữ.")
+        self._set_status("Đã dừng. Câu đã gen được giữ. Dán key mới rồi bấm Gen chưa xong.")
 
     def _on_done(self) -> None:
         self.refresh_table()
         self._counts()
+        done, _err, n = self.project.counts()
+        if self.project.merged_now and self.project.merged_now.is_file():
+            self._set_status(f"Đủ câu. Đã ghép {self.project.merged_now.name}")
+        elif self.project.final_error:
+            self._set_status(self.project.final_error)
+        else:
+            self._set_status(f"Xong phần này ({done}/{n}). Câu đã gen được giữ, chưa ghép final.")
 
     def _clear_thread(self) -> None:
         self._thread = None

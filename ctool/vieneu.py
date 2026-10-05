@@ -47,6 +47,39 @@ def _request(
         raise RuntimeError(f"VieNeu API {exc.code}: {detail or exc.reason}") from exc
 
 
+def is_key_limit_error(message: str) -> bool:
+    """Hết hạn mức, key sai, hoặc bị chặn — đổi token rồi chạy tiếp được."""
+    text = message or ""
+    low = text.lower()
+    if any(f"vieneu api {code}" in low for code in ("401", "402", "403", "429")):
+        return True
+    needles = (
+        "quota",
+        "rate limit",
+        "ratelimit",
+        "too many request",
+        "insufficient",
+        "credit",
+        "billing",
+        "payment required",
+        "usage limit",
+        "hết hạn",
+        "hết quota",
+        "hết token",
+        "invalid api",
+        "unauthorized",
+        "api key",
+        "forbidden",
+    )
+    if any(needle in low for needle in needles):
+        return True
+    if "token" in low and any(
+        word in low for word in ("limit", "exceed", "quota", "hết", "invalid", "expired")
+    ):
+        return True
+    return False
+
+
 def list_voices(api_key: str) -> list[str]:
     raw, ctype = _request("GET", "/voices", api_key, query={"engine": "v4"}, timeout=30)
     names: list[str] = []

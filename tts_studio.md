@@ -21,10 +21,11 @@ Ra file: `dist\CtoolTTS\CtoolTTS.exe`
 
 Mở file trong `kich-ban\` (có `segments[].text`). Mỗi câu gen xong ghi ngay:
 
-- audio: `<ten>.tts\<id>.mp3`
+- audio: `<ten>.tts\00000_<id>.mp3` (số đầu cố định 5 chữ số, đúng thứ tự câu)
 - trạng thái: `<ten>.json.tts.json`
+- khi đủ mọi câu: `<ten>.final.mp3`
 
-Lỗi giữa chừng thì các câu trước vẫn giữ. Bấm **Gen chưa xong** để chạy tiếp.
+Lỗi giữa chừng thì các câu trước vẫn giữ. Hết hạn mức token thì cửa sổ hỏi API key mới và chạy tiếp từ câu lỗi, không gen lại từ đầu. Bấm **Gen chưa xong** cũng nối tiếp. Ghép `final` chỉ khi không còn câu thiếu.
 
 ## Skill kịch bản (Cursor + Claude Code)
 
