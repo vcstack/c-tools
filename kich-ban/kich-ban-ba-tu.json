@@ -1,0 +1,297 @@
+{
+    "source":  {
+                   "filename":  "ba-tu",
+                   "title":  "Bà Tư",
+                   "note":  "Chuyện Sóc Trăng, tách khỏi chuỗi thầy Bảy Gạo."
+               },
+    "speakers":  [
+                     "SPEAKER_00"
+                 ],
+    "segments":  [
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mọi người ơi. Có người chết ở đám giỗ, chôn sau nhà ba bốn ngày đã về. Không phải về ăn. Về kêu con, kêu chồng, kéo người hàng xóm ra bếp.",
+                         "id":  "s0000"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chào mọi người. Mình kể chuyện ma. Hôm nay là chuyện bà Tư, quê Sóc Trăng. Chị Đào kể lại. Mình xin phép kể một lần cho đàng hoàng.",
+                         "id":  "s0001"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chị Đào hồi nhỏ xứ đó làm ruộng. Chị hay theo mấy anh trong xóm chơi. Trong đó có anh Nghiệp và anh Tường.",
+                         "id":  "s0002"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bữa đó chơi trốn tìm. Lấy gốc dừa làm cột đếm. Anh Nghiệp chạy chụp cột, thắng không kịp.",
+                         "id":  "s0003"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "In mặt vô thân dừa. Môi tét. Răng cạp xước vỏ cây.",
+                         "id":  "s0004"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Máu me. Người lớn chở đi khâu. Mai môi hết mấy mũi.",
+                         "id":  "s0005"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Anh Tường chơi xích đu gần mương cạn. Đu một cái, nhào đầu xuống sình. Chân chổng trời.",
+                         "id":  "s0006"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mấy anh chạy nắm giò kéo lên.",
+                         "id":  "s0007"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Trời chuyển mưa. Cha chị Đào kêu về. Chị mê chơi không dậy.",
+                         "id":  "s0008"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ngoài sân còn nguyên đống lúa.",
+                         "id":  "s0009"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Cha sách cây qua. Chị vừa cầm bao vừa khóc. Xúc được một chút thì mưa ầm.",
+                         "id":  "s0010"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Hai cha con đứng nhìn. Lúc đó hối. Lớn lên nhớ lại thì thành kỷ niệm.",
+                         "id":  "s0011"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Tới năm chị khoảng ba mươi. Anh Nghiệp có vợ. Cha mẹ ảnh là ông bà Tư.",
+                         "id":  "s0012"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bữa đó bà Tư đi phụ đám giỗ. Nấu mâm. Rửa chén.",
+                         "id":  "s0013"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Dọn bàn cho bữa cúng sau. Mấy chú nấu thịt chó xào lăn. Bà ăn vài miếng.",
+                         "id":  "s0014"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Đang rửa chén thì té. Sùi bọt mép. Chở viện.",
+                         "id":  "s0015"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Không cứu được.",
+                         "id":  "s0016"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Lúc hấp hối, trào đồ ăn. Bác sĩ móc ra thịt chó với thứ rau tanh. Người ta nói trúng thực.",
+                         "id":  "s0017"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Người đang yếu mà ăn đồ kỵ.",
+                         "id":  "s0018"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Đám đó ai cũng ăn. Chỉ một mình bà ngã. Bà mất năm đó.",
+                         "id":  "s0019"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Năm mươi ba tuổi.",
+                         "id":  "s0020"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Nhà theo đạo, có đất thánh. Ông Tư không chôn bà ở đó. Chôn sau nhà.",
+                         "id":  "s0021"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ba bốn ngày sau bà về. Đêm đó vợ chồng anh Nghiệp đang ngủ. Anh nghe tiếng má.",
+                         "id":  "s0022"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Để má vô thăm con trai út.",
+                         "id":  "s0023"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mở mắt thấy bà. Bà vén mùng nhìn. Anh sợ gần chết.",
+                         "id":  "s0024"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ông Tư nhậu về, không ăn, nằm là bị kêu. Sao không ăn cơm. Xuống nấu mà ăn.",
+                         "id":  "s0025"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Cả tuần, bà kêu ông Tư, kêu vợ chồng con.",
+                         "id":  "s0026"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Vợ anh Nghiệp chịu không nổi, rủ chồng về bên ngoại. Anh chiều, dọn luôn.",
+                         "id":  "s0027"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ông Tư thấy nhiều lần, nói với cháu rể, anh Út. Anh Út không tin. Bữa đó có rượu.",
+                         "id":  "s0028"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ông nói để ông leo lên mộ bà nằm, coi bà làm gì. Người ta can. Ông vẫn lên.",
+                         "id":  "s0029"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Nằm một lúc thì la. Chạy xuống, mặt trắng. Từ đó anh Út không cười nữa.",
+                         "id":  "s0030"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Rồi tới anh Nam, chồng chị kế bên. Đang ngủ, nghe có người kêu. Ra bếp.",
+                         "id":  "s0031"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Thấy một người đứng đó. Kêu xuống uống cái này, ngon lắm. Anh tỉnh, kể lại.",
+                         "id":  "s0032"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Cha mẹ chị Đào hỏi hai vợ chồng có xích mích không. Chị Nam nói không. Bình thường.",
+                         "id":  "s0033"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mọi người hiểu. Bà Tư kéo anh Nam đi, lần này tới lần khác.",
+                         "id":  "s0034"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà mẹ anh Nam đứng giữa nhà bà Tư mà nói. Mày chết rồi sao không đi đầu thai. Mày hại con tao vậy.",
+                         "id":  "s0035"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Nói vậy thôi. Nhà không còn ai ở. Vợ chồng anh Nghiệp với ông Tư qua đất bên vợ rồi.",
+                         "id":  "s0036"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ở nhà nhát, không ai chịu nổi.",
+                         "id":  "s0037"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bàn thờ bỏ lạnh. Vợ chồng anh Út qua thắp nhang. Châm lên là bỏ chạy.",
+                         "id":  "s0038"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Không dám ngồi. Không dám dọn.",
+                         "id":  "s0039"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Xóm theo đạo. Lẽ ra ông Tư phải mời cha làm lễ. Ông không mời.",
+                         "id":  "s0040"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà Tư lúc sống cũng ít đi nhà thờ.",
+                         "id":  "s0041"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Một tối, cha chị Đào đi ruộng canh ốc ăn lúa. Khoảng bảy tám giờ về. Nhìn xa, thấy một người đàn bà từ hướng mộ bà Tư đi ra.",
+                         "id":  "s0042"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ông biết là ai. Không sợ. Đi tới.",
+                         "id":  "s0043"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà cũng đi xăm xăm. Còn cách chừng chục bước, ông la.",
+                         "id":  "s0044"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mày đi không. Tao không sợ mày. Mày nhát tao.",
+                         "id":  "s0045"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mày đi không tao quấn chết. Ông bước tới. Bà lùi vài bước rồi mất.",
+                         "id":  "s0046"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Nhà bên đó mục. Chị Đào sợ bàn thờ hư, nhắn anh Nghiệp. Về thỉnh bàn thờ, nhang khói cho bà ấm.",
+                         "id":  "s0047"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bỏ lạnh hoài, bà hiện chọc người.",
+                         "id":  "s0048"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Anh nhắn không về được. Nhờ giật sập nhà. Mấy ngày sau hai cha con ông Tư về, thỉnh bàn thờ qua bên kia.",
+                         "id":  "s0049"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Từ đó ít thấy bà cố ý nhát. Chị kể chuyện này đã tám chín năm. Mỗi lần về quê, chị không dám đi ra phía nhà sau.",
+                         "id":  "s0050"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Hiện giờ người ta lâu lâu vẫn thấy bà. Kiểu vô tình. Không còn cố ý như hồi đó.",
+                         "id":  "s0051"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chuyện bà Tư, mình kể tới đây. Cảm ơn chị Đào đã kể lại cho đàng hoàng.",
+                         "id":  "s0052"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chúc mọi người mạnh khỏe, bình an.",
+                         "id":  "s0053"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mọi người nghe thấy ổn thì đăng ký kênh ủng hộ dùm mình. Like. Chia sẻ. Bấm chuông.",
+                         "id":  "s0054"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Có chuyện tâm linh của mình, của người thân, gửi về. Mình kể lại cho cả nhà cùng nghe. Thôi.",
+                         "id":  "s0055"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Xin chào. Hẹn gặp lại.",
+                         "id":  "s0056"
+                     }
+                 ]
+}

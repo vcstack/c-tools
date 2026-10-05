@@ -1,0 +1,227 @@
+{
+    "source":  {
+                   "filename":  "tro-nui-sap",
+                   "title":  "Trọ Núi Sập",
+                   "note":  "Chuyện An Giang và Bình Dương, tách khỏi chuỗi thầy Bảy Gạo."
+               },
+    "speakers":  [
+                     "SPEAKER_00"
+                 ],
+    "segments":  [
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mọi người ơi. Có phòng trọ trời nắng vẫn lạnh. Nghe chân trên nóc. Cửa đứng một người dắt chó. Hỏi ra thì phòng đó đã có người chết.",
+                         "id":  "s0000"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chào mọi người. Mình kể chuyện ma. Hôm nay là chuyện nhà bạn Nhi, quê An Giang. Mình xin phép kể một lần cho đàng hoàng.",
+                         "id":  "s0001"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ba mẹ với bà ngoại bán bánh, thường đứng trước cổng trường.",
+                         "id":  "s0002"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ba mẹ bán xã này, ngoại bán xã khác. Không bán cố định. Chuyển chỗ bán là chuyển chỗ trọ.",
+                         "id":  "s0003"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Lần đó ba mẹ thuê trọ ở thị trấn Núi Sập. Phòng chưa gắn điện. Đèn cây với đèn bình.",
+                         "id":  "s0004"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ba đi bán thì mẹ đi theo. Mưa cũng đi. Mẹ không dám ở phòng một mình.",
+                         "id":  "s0005"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Trời nắng phòng vẫn lạnh.",
+                         "id":  "s0006"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Tối ngủ, nghe như có người đi trên nóc. Ba tức, leo lên coi. Không có gì.",
+                         "id":  "s0007"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Có đêm ba thấy một người đàn ông đứng cửa phòng, dắt một con chó rất lớn.",
+                         "id":  "s0008"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Ba mẹ chuyển huyện khác. Phòng đó để bà ngoại ở. Đêm đầu, ngoại tắt đèn, mở bóng đèn nhỏ.",
+                         "id":  "s0009"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Vừa nhắm mắt, thấy một ông rất lớn đứng ngay chân giường. Người cứng, không cử động được. Ngoại sợ, chỉ niệm Phật.",
+                         "id":  "s0010"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Một lúc thì hết. Ngoại bật đèn ngủ luôn thì không thấy gì. Nhà nghèo, rày đây mai đó, chịu.",
+                         "id":  "s0011"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bị nhiều lần mà không dọn.",
+                         "id":  "s0012"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Hỏi ra, trước có người bị rắn cắn chết trong phòng. Ai thuê cũng bị nhát. Có người thấy bóng từ gác đi xuống.",
+                         "id":  "s0013"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Dì hai của Nhi cũng gặp một chuyện khác, ở Bình Dương. Dì có nghề xăm môi, đi đâu cũng thuê trọ. Từ nhỏ dì đã hay thấy.",
+                         "id":  "s0014"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chưa lần nào như lần đó.",
+                         "id":  "s0015"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Vô phòng, người xung quanh đi qua đi lại, nhìn vô hoài. Tối dì nằm, nghe chén dĩa khua trong bếp. Tưởng chuột.",
+                         "id":  "s0016"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Vô coi, không có gì.",
+                         "id":  "s0017"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Trở lại nằm. Mười một, mười hai giờ. Đèn ngủ còn sáng.",
+                         "id":  "s0018"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Dì thấy một bóng. Rõ. Không có đầu.",
+                         "id":  "s0019"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Dì sợ, không đứng được. Vừa bò vừa la. Người xung quanh thức, chạy ra, thấy dì lết từ trong phòng.",
+                         "id":  "s0020"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Đỡ lên. Dì không nói được. Họ cho ngủ nhờ một đêm.",
+                         "id":  "s0021"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Sáng dì mới kể nổi.",
+                         "id":  "s0022"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Lúc dì đang kể, một ông chú lớn tuổi đi tới. Ông nói bữa dì tới thuê, ông muốn cản. Có bà chủ đứng đó, không dám nói.",
+                         "id":  "s0023"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Dãy trọ này trước của một bà khác. Bà vừa buôn ve chai, vừa cho thuê. Bà có một bãi ve chai lớn.",
+                         "id":  "s0024"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà nhận một anh người làm. Mồ côi. Làm một thời gian, anh nói không còn người thân.",
+                         "id":  "s0025"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà bao ăn ở.",
+                         "id":  "s0026"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Anh nhờ bà giữ lương. Mỗi tháng chỉ lấy tiền lẻ. Khi nào cưới vợ mới lấy hết.",
+                         "id":  "s0027"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà đồng ý, cất giùm.",
+                         "id":  "s0028"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Anh làm cả chục năm. Quen một cô. Tìm hiểu cả năm, tính cưới.",
+                         "id":  "s0029"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Anh xin lại tiền.",
+                         "id":  "s0030"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà hỏi tìm hiểu kỹ chưa. Anh nói kỹ rồi. Lương mười năm không phải số nhỏ.",
+                         "id":  "s0031"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bà không muốn trả.",
+                         "id":  "s0032"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Đêm đó bà mướn người giết anh. Cắt đầu, phi tang xuống giếng sau dãy trọ. Ai hỏi, bà nói anh lấy tiền đi cưới rồi.",
+                         "id":  "s0033"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Phòng ế, khó ai để ý.",
+                         "id":  "s0034"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Một thời gian sau, không rõ bà trải qua chuyện gì, bà đi tự thú. Khai hết. Người ta xuống giếng, đúng là có xác.",
+                         "id":  "s0035"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Con bà bán dãy trọ cho bà chủ sau. Cái phòng đó không ai ở được. Người thuê sợ tới mức không dám vô lấy đồ, phải nhờ người khác.",
+                         "id":  "s0036"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Bỏ quần áo. Bỏ tiền phòng. Không ở thêm một phút.",
+                         "id":  "s0037"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chuyện nhà bạn Nhi, mình kể tới đây. Cảm ơn bạn đã kể lại cho đàng hoàng.",
+                         "id":  "s0038"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Chúc mọi người mạnh khỏe, bình an.",
+                         "id":  "s0039"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Mọi người nghe thấy ổn thì đăng ký kênh ủng hộ dùm mình. Like. Chia sẻ. Bấm chuông.",
+                         "id":  "s0040"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Có chuyện tâm linh của mình, của người thân, gửi về. Mình kể lại cho cả nhà cùng nghe. Thôi.",
+                         "id":  "s0041"
+                     },
+                     {
+                         "speaker":  "SPEAKER_00",
+                         "text":  "Xin chào. Hẹn gặp lại.",
+                         "id":  "s0042"
+                     }
+                 ]
+}
