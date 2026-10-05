@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_API_BASE = "https://api.vieneu.io/api/v1"
-FALLBACK_VOICES = ["Ngọc Lan", "Minh Quân", "Phạm Tuyên", "Ngọc Huyền", "Mai Anh"]
+FALLBACK_VOICES = ["Ngọc Lan", "Minh Quân", "Phạm Tuyên", "Adam", "Anh Khôi"]
+_v4_catalog: list[tuple[str, str]] | None = None
 
 
 def api_base() -> str:
@@ -80,22 +81,83 @@ def is_key_limit_error(message: str) -> bool:
     return False
 
 
+def _choices_from_payload(parsed: Any) -> list[tuple[str, str]]:
+    """(id gửi API, tên hiện trên UI)."""
+    items = parsed
+    if isinstance(parsed, dict):
+        items = parsed.get("voices") or parsed.get("data") or parsed.get("items") or []
+    choices: list[tuple[str, str]] = []
+    for item in items or []:
+        if isinstance(item, str):
+            vid = item.strip()
+            label = vid
+            engine = "v4"
+        elif isinstance(item, dict):
+            vid = str(item.get("id") or "").strip()
+            label = str(item.get("name") or vid).strip()
+            engine = str(item.get("engine") or "v4").strip().lower()
+        else:
+            continue
+        if vid and engine == "v4":
+            choices.append((vid, label or vid))
+    return choices
+
+
+def _load_v4_catalog(api_key: str = "") -> list[tuple[str, str]]:
+    global _v4_catalog
+    if (api_key or "").strip():
+        try:
+            raw, ctype = _request("GET", "/voices", api_key, query={"engine": "v4"}, timeout=30)
+            if "json" in ctype or raw[:1] in (b"{", b"["):
+                choices = _choices_from_payload(json.loads(raw.decode("utf-8")))
+                if choices:
+                    _v4_catalog = choices
+                    return choices
+        except Exception:
+            pass
+    if _v4_catalog:
+        return _v4_catalog
+    try:
+        url = f"{api_base()}/voices?engine=v4"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            parsed = json.loads(resp.read().decode("utf-8"))
+        _v4_catalog = _choices_from_payload(parsed)
+    except Exception:
+        _v4_catalog = []
+    return _v4_catalog
+
+
+def list_voice_catalog(api_key: str = "") -> list[tuple[str, str]]:
+    choices = _load_v4_catalog(api_key)
+    if choices:
+        return choices
+    return [(name, name) for name in FALLBACK_VOICES]
+
+
+def resolve_voice(voice: str) -> str:
+    """Tên trên UI hoặc id đều ra id để gửi POST /audio/speech."""
+    voice = (voice or "").strip()
+    if not voice:
+        raise ValueError("Chưa chọn giọng.")
+    if voice.startswith("clone_"):
+        return voice
+    choices = _load_v4_catalog()
+    if not choices:
+        return voice
+    ids = {vid for vid, _label in choices}
+    if voice in ids:
+        return voice
+    for vid, label in choices:
+        if label == voice:
+            return vid
+    raise ValueError(
+        f'Giọng "{voice}" không có trên VieNeu V4. Bấm Tải giọng và chọn trong danh sách.'
+    )
+
+
 def list_voices(api_key: str) -> list[str]:
-    raw, ctype = _request("GET", "/voices", api_key, query={"engine": "v4"}, timeout=30)
-    names: list[str] = []
-    if "json" in ctype or raw[:1] in (b"{", b"["):
-        parsed = json.loads(raw.decode("utf-8"))
-        items = parsed
-        if isinstance(parsed, dict):
-            items = parsed.get("data") or parsed.get("voices") or parsed.get("items") or []
-        for item in items:
-            if isinstance(item, str):
-                names.append(item)
-            elif isinstance(item, dict):
-                name = item.get("name") or item.get("id") or item.get("voice")
-                if name:
-                    names.append(str(name))
-    return names or list(FALLBACK_VOICES)
+    return [vid for vid, _label in list_voice_catalog(api_key)]
 
 
 def synthesize(
@@ -109,6 +171,7 @@ def synthesize(
     text = (text or "").strip()
     if not text:
         raise ValueError("Empty TTS text")
+    voice = resolve_voice(voice)
     body: dict[str, Any] = {
         "input": text,
         "voice": voice,

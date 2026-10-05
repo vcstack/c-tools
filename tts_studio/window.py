@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ctool.vieneu import FALLBACK_VOICES, list_voices
+from ctool.vieneu import FALLBACK_VOICES, list_voice_catalog, resolve_voice
 from tts_studio.project import (
     STATUS_DONE,
     STATUS_ERROR,
@@ -108,11 +108,9 @@ class MainWindow(QMainWindow):
         bar.addWidget(QLabel(" Giọng "))
         self.voice_box = QComboBox()
         self.voice_box.setEditable(True)
-        self.voice_box.addItems(list(FALLBACK_VOICES))
-        if voice and voice not in FALLBACK_VOICES:
-            self.voice_box.addItem(voice)
-        self.voice_box.setCurrentText(voice)
-        self.voice_box.setMinimumWidth(140)
+        self.voice_box.setMinimumWidth(180)
+        self._fill_voices([(name, name) for name in FALLBACK_VOICES], voice)
+        QTimer.singleShot(0, self.refresh_voices)
         bar.addWidget(self.voice_box)
         load_v = QPushButton("Tải giọng")
         load_v.clicked.connect(self.refresh_voices)
@@ -187,26 +185,61 @@ class MainWindow(QMainWindow):
         name = self.project.json_path.name if self.project.json_path else ""
         self._set_status(f"{name} — {done}/{n} xong · {err} lỗi")
 
+    def _fill_voices(self, choices: list[tuple[str, str]], token: str) -> None:
+        self.voice_box.blockSignals(True)
+        self.voice_box.clear()
+        for vid, label in choices:
+            self.voice_box.addItem(label or vid, vid)
+        self._select_voice(token)
+        self.voice_box.blockSignals(False)
+
+    def _select_voice(self, token: str) -> None:
+        token = (token or "").strip()
+        if not token:
+            if self.voice_box.count():
+                self.voice_box.setCurrentIndex(0)
+            return
+        for i in range(self.voice_box.count()):
+            if self.voice_box.itemData(i) == token:
+                self.voice_box.setCurrentIndex(i)
+                return
+        idx = self.voice_box.findText(token)
+        if idx >= 0:
+            self.voice_box.setCurrentIndex(idx)
+            return
+        self.voice_box.setEditText(token)
+
+    def _selected_voice_id(self) -> str:
+        text = self.voice_box.currentText().strip()
+        idx = self.voice_box.findText(text)
+        if idx >= 0:
+            data = self.voice_box.itemData(idx)
+            if isinstance(data, str) and data.strip():
+                return data.strip()
+        return resolve_voice(text or "Ngọc Lan")
+
     def save_key(self) -> None:
-        save_prefs(self.api_edit.text().strip(), self.voice_box.currentText().strip())
+        try:
+            vid = self._selected_voice_id()
+        except ValueError:
+            vid = self.voice_box.currentText().strip()
+        save_prefs(self.api_edit.text().strip(), vid)
         self._set_status("Đã lưu API key.")
 
     def refresh_voices(self) -> None:
-        key = self.api_edit.text().strip()
-        if not key:
-            QMessageBox.warning(self, "VieNeu", "Dán API key trước.")
-            return
+        token = ""
+        if self.voice_box.count():
+            data = self.voice_box.currentData()
+            token = data.strip() if isinstance(data, str) and data.strip() else self.voice_box.currentText().strip()
         try:
-            names = list_voices(key)
+            choices = list_voice_catalog(self.api_edit.text().strip())
         except Exception as exc:
             QMessageBox.critical(self, "VieNeu", str(exc))
             return
-        names = names or list(FALLBACK_VOICES)
-        cur = self.voice_box.currentText()
-        self.voice_box.clear()
-        self.voice_box.addItems(names)
-        self.voice_box.setCurrentText(cur if cur in names else names[0])
-        self._set_status(f"Giọng: {len(names)}")
+        if not choices:
+            choices = [(name, name) for name in FALLBACK_VOICES]
+        self._fill_voices(choices, token)
+        self._set_status(f"Giọng V4: {len(choices)}")
 
     def open_json(self) -> None:
         start = str(Path(__file__).resolve().parents[1] / "kich-ban")
@@ -223,7 +256,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "JSON", str(exc))
             return
         if self.project.voice:
-            self.voice_box.setCurrentText(self.project.voice)
+            self._select_voice(self.project.voice)
         self.setWindowTitle(f"C-tool TTS — {path.name}")
         self.refresh_table()
         self._counts()
@@ -322,7 +355,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "TTS", "Thiếu API key VieNeu.")
             return
         self.save_editor(silent=True)
-        voice = self.voice_box.currentText().strip() or "Ngọc Lan"
+        label = self.voice_box.currentText().strip() or "Ngọc Lan"
+        try:
+            voice = self._selected_voice_id()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Giọng", str(exc))
+            return
         self.project.voice = voice
         todo = self.project.todo(mode, self._selected)
         if not todo:
@@ -348,7 +386,7 @@ class MainWindow(QMainWindow):
         self._worker = worker
         self._thread = thread
         thread.start()
-        self._set_status(f"Gen {len(todo)} câu…")
+        self._set_status(f"Gen {len(todo)} câu · {label}.")
 
     def stop_gen(self) -> None:
         if self._worker:
