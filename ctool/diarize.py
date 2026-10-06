@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import torch
+from pyannote.audio import Pipeline
+
 from ctool.logging_setup import logger
 
 DIARIZATION_MODELS = {
@@ -38,11 +41,6 @@ def run_pyannote(
 ) -> list[tuple[float, float, str]]:
     """Return (start, end, speaker) regions."""
     try:
-        from pyannote.audio import Pipeline
-    except ImportError as exc:
-        raise RuntimeError("pyannote.audio is not installed.") from exc
-
-    try:
         try:
             pipeline = Pipeline.from_pretrained(model_name, token=hf_token or None)
         except TypeError:
@@ -50,8 +48,6 @@ def run_pyannote(
         if pipeline is None:
             raise _license_error(model_name)
         if device == "cuda":
-            import torch
-
             pipeline.to(torch.device("cuda"))
         annotation = pipeline(
             audio_wav,

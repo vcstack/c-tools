@@ -60,9 +60,19 @@ def find_clip(folder: Path, index: int, uid: str) -> Path | None:
     return None
 
 
+_concat_last_error = ""
+
+
+def concat_error() -> str:
+    return _concat_last_error or "Ghép lỗi. Từng câu vẫn giữ."
+
+
 def _concat_ffmpeg(files: list[Path], dest: Path) -> Path | None:
+    global _concat_last_error
+    _concat_last_error = ""
     files = [path for path in files if _audio_ok(path)]
     if not files:
+        _concat_last_error = "Không có file audio để ghép."
         return None
     if dest.suffix.lower() in {".mp3", ".wav"}:
         out = dest
@@ -75,6 +85,7 @@ def _concat_ffmpeg(files: list[Path], dest: Path) -> Path | None:
         return out
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
+        _concat_last_error = "Không thấy ffmpeg trong PATH. Từng câu vẫn giữ."
         return None
     lst = out.with_name(out.stem + ".concat.txt")
     lines = []
@@ -96,7 +107,7 @@ def _concat_ffmpeg(files: list[Path], dest: Path) -> Path | None:
             "copy",
             str(out),
         ]
-        if subprocess.call(copy_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+        if subprocess.call(copy_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0 and _audio_ok(out):
             return out
         wav = out.with_suffix(".wav")
         wav_cmd = [
@@ -110,9 +121,10 @@ def _concat_ffmpeg(files: list[Path], dest: Path) -> Path | None:
             str(lst),
             str(wav),
         ]
-        if subprocess.call(wav_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
-            return None
-        return wav
+        if subprocess.call(wav_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0 and _audio_ok(wav):
+            return wav
+        _concat_last_error = "ffmpeg ghép lỗi. Từng câu vẫn giữ."
+        return None
     finally:
         try:
             lst.unlink(missing_ok=True)
@@ -263,5 +275,5 @@ def run_vieneu_tts(
     merged = _concat_ffmpeg(ready, folder / "final.mp3")
     manifest = _persist(merged)
     if not merged:
-        manifest["final_error"] = "Đã lưu từng câu. Thiếu ffmpeg hoặc ghép final lỗi."
+        manifest["final_error"] = concat_error()
     return manifest

@@ -7,8 +7,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ctool.tts_job import _concat_ffmpeg, clip_filename, find_clip
-from ctool.vieneu import synthesize
+from ctool.tts_job import _concat_ffmpeg, clip_filename, concat_error, find_clip
+from ctool.vieneu import brief_api_error, synthesize
 
 STATUS_PENDING = "chưa"
 STATUS_GEN = "đang gen"
@@ -209,7 +209,7 @@ class TtsProject:
             path = synthesize(api_key, text, voice, dest=dest)
         except Exception as exc:
             prev = (self.items.get(sid) or {}).get("audio") or ""
-            self.mark(sid, STATUS_ERROR, audio=prev, error=str(exc)[:500])
+            self.mark(sid, STATUS_ERROR, audio=prev, error=brief_api_error(str(exc))[:500])
             raise
         self.mark(
             sid,
@@ -239,37 +239,55 @@ class TtsProject:
             return None
         return self.json_path.with_name(self.json_path.stem + ".final.mp3")
 
-    def merge_final(self) -> Path | None:
-        """Ghép final chỉ khi mọi câu có text đã có file audio. Thứ tự theo JSON."""
+    def merge_prefix(self) -> tuple[Path | None, str]:
+        """Ghép từ câu đầu. Gặp lỗi hoặc chưa có audio thì dừng trước câu đó."""
         self.final_error = ""
         self.merged_now = None
         if not self.json_path:
-            return None
+            return None, "Chưa mở file."
         folder = audio_dir(self.json_path)
         files: list[Path] = []
+        note = ""
         for i, seg in enumerate(self.segments()):
             text = (seg.get("text") or "").strip()
             if not text:
                 continue
             sid = str(seg["id"])
-            if self.status_of(sid) != STATUS_DONE:
-                return None
+            status = self.status_of(sid)
             audio = self.audio_of(sid) or find_clip(folder, i, sid)
-            if not audio:
-                return None
+            if status != STATUS_DONE or not audio:
+                why = "lỗi" if status == STATUS_ERROR else "chưa có audio"
+                if not files:
+                    return None, f"Không ghép được. {sid} {why}."
+                note = f"Ghép {len(files)} câu, dừng trước {sid} ({why})."
+                break
             files.append(audio)
         if not files:
-            return None
+            return None, "Không có câu nào để ghép."
+        if not note:
+            note = f"Ghép đủ {len(files)} câu."
         dest = self.final_file()
         if dest is None:
-            return None
+            return None, "Chưa mở file."
         merged = _concat_ffmpeg(files, dest)
         if not merged:
-            self.final_error = "Đã lưu từng câu. Thiếu ffmpeg hoặc ghép final lỗi."
+            self.final_error = concat_error()
             self.final_path = ""
             self.flush_state()
-            return None
+            return None, self.final_error
         self.final_path = str(merged)
         self.merged_now = merged
         self.flush_state()
-        return merged
+        return merged, f"{note} {merged.name}."
+
+    def merge_final(self) -> Path | None:
+        """Chỉ ghép khi mọi câu đã xong. Còn lỗ hổng thì để nút Ghép file xử lý."""
+        for seg in self.segments():
+            if not (seg.get("text") or "").strip():
+                continue
+            if self.status_of(str(seg["id"])) != STATUS_DONE:
+                return None
+        path, note = self.merge_prefix()
+        if not path:
+            self.final_error = note
+        return path

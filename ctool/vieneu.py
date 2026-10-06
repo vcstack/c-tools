@@ -48,6 +48,23 @@ def _request(
         raise RuntimeError(f"VieNeu API {exc.code}: {detail or exc.reason}") from exc
 
 
+def brief_api_error(message: str) -> str:
+    """Lấy câu message trong JSON lỗi, khỏi nhét cả khối {"error":...} vào log."""
+    text = (message or "").strip()
+    start = text.find("{")
+    if start >= 0:
+        try:
+            data = json.loads(text[start:])
+        except json.JSONDecodeError:
+            data = None
+        err = data.get("error") if isinstance(data, dict) else None
+        if isinstance(err, dict) and err.get("message"):
+            return str(err["message"]).strip()
+        if isinstance(err, str) and err.strip():
+            return err.strip()
+    return text[:300]
+
+
 def is_key_limit_error(message: str) -> bool:
     """Hết hạn mức, key sai, hoặc bị chặn — đổi token rồi chạy tiếp được."""
     text = message or ""

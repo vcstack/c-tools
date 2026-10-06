@@ -1,7 +1,9 @@
 import logging
+import os
 import sys
 import warnings
-import os
+
+import pyannote.audio.core.model as pyannote_model
 
 
 def configure_logging_libs(debug=False):
@@ -25,8 +27,7 @@ def configure_logging_libs(debug=False):
         # fix verbose pyannote audio
         def fix_verbose_pyannote(*args, what=""):
             pass
-        import pyannote.audio.core.model # noqa
-        pyannote.audio.core.model.check_version = fix_verbose_pyannote
+        pyannote_model.check_version = fix_verbose_pyannote
     except Exception as error:
         logger.error(str(error))
 

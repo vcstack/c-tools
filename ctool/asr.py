@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import jax.numpy as jnp
 import soundfile as sf
+from whisper_jax import FlaxWhisperPipline
+
 from ctool.logging_setup import logger
 
 _PIPELINE = None
@@ -29,8 +32,6 @@ def resolve_model_id(asr_model: str) -> str:
 
 
 def _jax_dtype(compute_type: str, device: str):
-    import jax.numpy as jnp
-
     mapping = {
         "float16": jnp.float16,
         "bfloat16": jnp.bfloat16,
@@ -48,8 +49,6 @@ def get_pipeline(model_id: str, compute_type: str, batch_size: int, device: str)
     key = (model_id, compute_type, batch_size, device)
     if _PIPELINE is not None and _PIPELINE_KEY == key:
         return _PIPELINE
-
-    from whisper_jax import FlaxWhisperPipline
 
     dtype = _jax_dtype(compute_type, device)
     logger.info(f"Loading whisper-jax {model_id} dtype={dtype} batch_size={batch_size}")

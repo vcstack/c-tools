@@ -5,13 +5,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+import torch
 from dotenv import load_dotenv
 
 
 def _cuda_available() -> bool:
     try:
-        import torch
-
         return bool(torch.cuda.is_available())
     except Exception:
         return False

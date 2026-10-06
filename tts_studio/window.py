@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -21,16 +22,19 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSlider,
     QSplitter,
     QStatusBar,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from ctool.vieneu import FALLBACK_VOICES, list_voice_catalog, resolve_voice
+from ctool.vieneu import FALLBACK_VOICES
 from tts_studio.project import (
     STATUS_DONE,
     STATUS_ERROR,
@@ -41,7 +45,8 @@ from tts_studio.project import (
     load_prefs,
     save_prefs,
 )
-from tts_studio.worker import GenThread, GenWorker
+from tts_studio.stt_panel import SttPanel
+from tts_studio.worker import GenThread, GenWorker, MergeThread, VoiceCatalogThread
 
 _COLORS = {
     STATUS_DONE: QColor("#0a7a28"),
@@ -49,6 +54,82 @@ _COLORS = {
     STATUS_GEN: QColor("#8a6d00"),
     STATUS_STALE: QColor("#9a5b00"),
 }
+
+
+def _icon(kind: str) -> QIcon:
+    pix = QPixmap(20, 20)
+    pix.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    color = QColor("#1a1a1a")
+    pen = QPen(color)
+    pen.setWidthF(1.6)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(color)
+
+    def poly(*pts: tuple[int, int]) -> None:
+        painter.drawPolygon(QPolygon([QPoint(x, y) for x, y in pts]))
+
+    if kind == "open":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(3, 8, 8, 8)
+        painter.drawLine(8, 8, 10, 6)
+        painter.drawLine(10, 6, 17, 6)
+        painter.drawRect(3, 8, 14, 8)
+    elif kind == "save":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(3, 2, 14, 16)
+        painter.fillRect(7, 3, 6, 4, color)
+        painter.drawRect(6, 11, 8, 5)
+    elif kind == "gen":
+        poly((5, 3), (16, 10), (5, 17))
+    elif kind == "gen_from":
+        painter.drawLine(3, 3, 3, 17)
+        poly((7, 3), (17, 10), (7, 17))
+    elif kind == "gen_rest":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(3, 5, 11, 5)
+        painter.drawLine(3, 10, 11, 10)
+        painter.drawLine(3, 15, 9, 15)
+        poly((11, 12), (17, 15), (11, 18))
+    elif kind == "stop":
+        painter.drawRoundedRect(5, 5, 10, 10, 1, 1)
+    elif kind == "merge":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(2, 4, 8, 4)
+        painter.drawLine(2, 10, 8, 10)
+        painter.drawLine(2, 16, 8, 16)
+        painter.drawLine(8, 10, 13, 10)
+        poly((12, 7), (18, 10), (12, 13))
+    elif kind == "play":
+        poly((6, 3), (16, 10), (6, 17))
+    elif kind == "pause":
+        painter.drawRoundedRect(5, 4, 3, 12, 1, 1)
+        painter.drawRoundedRect(12, 4, 3, 12, 1, 1)
+    elif kind == "final":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(3, 3, 9, 14)
+        poly((8, 7), (16, 10), (8, 13))
+    elif kind == "folder":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawLine(3, 8, 8, 8)
+        painter.drawLine(8, 8, 10, 6)
+        painter.drawLine(10, 6, 17, 6)
+        painter.drawRect(3, 8, 14, 8)
+    elif kind == "refresh":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawArc(4, 4, 12, 12, 40 * 16, 250 * 16)
+        poly((14, 3), (18, 6), (13, 8))
+    elif kind == "key":
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(3, 6, 7, 7)
+        painter.drawLine(10, 9, 17, 9)
+        painter.drawLine(14, 9, 14, 12)
+        painter.drawLine(17, 9, 17, 12)
+    painter.end()
+    return QIcon(pix)
 
 
 class MainWindow(QMainWindow):
@@ -60,6 +141,8 @@ class MainWindow(QMainWindow):
         self._selected: str | None = None
         self._thread: GenThread | None = None
         self._worker: GenWorker | None = None
+        self._merge_thread: MergeThread | None = None
+        self._voice_thread: VoiceCatalogThread | None = None
         self._player = None
         self._audio_out = None
         self._init_player()
@@ -81,52 +164,78 @@ class MainWindow(QMainWindow):
             self._player = None
             self._audio_out = None
 
+    def _act(self, text: str, slot, kind: str, shortcut: str | None = None) -> QAction:
+        act = QAction(_icon(kind), text, self)
+        act.setToolTip(text)
+        act.setStatusTip(text)
+        act.triggered.connect(slot)
+        if shortcut:
+            act.setShortcut(QKeySequence(shortcut))
+        return act
+
     def _build(self, key: str, voice: str) -> None:
+        self.api_edit = QLineEdit(key)
+        self.api_edit.setEchoMode(QLineEdit.EchoMode.Password)
+
+        open_act = self._act("Mở JSON", self.open_json, "open", "Ctrl+O")
+        save_act = self._act("Lưu JSON", self.save_json, "save", "Ctrl+Shift+S")
+        folder_act = self._act("Thư mục audio", self.open_audio_dir, "folder")
+        key_act = self._act("API key…", self.edit_api_key, "key")
+        gen_one = self._act("Gen câu này", lambda: self.start_gen("one"), "gen")
+        gen_from = self._act("Gen từ đây", lambda: self.start_gen("from"), "gen_from")
+        gen_rest = self._act("Gen chưa xong", lambda: self.start_gen("pending"), "gen_rest")
+        stop_act = self._act("Dừng", self.stop_gen, "stop")
+        merge_act = self._act("Ghép file", self.start_merge, "merge")
+        self._play_act = self._act("Phát câu này", self.play_selected, "play", "Ctrl+P")
+        self._pause_act = self._act("Tạm dừng", self.toggle_pause, "pause")
+        self._stop_listen_act = self._act("Dừng nghe", self.stop_audio, "stop")
+        self._final_act = self._act("Nghe file ghép", self.play_final, "final")
+        refresh_act = self._act("Tải giọng", self.refresh_voices, "refresh")
+
+        file_menu = self.menuBar().addMenu("File")
+        file_menu.addAction(open_act)
+        file_menu.addAction(save_act)
+        file_menu.addAction(folder_act)
+        file_menu.addSeparator()
+        file_menu.addAction(key_act)
+
+        gen_menu = self.menuBar().addMenu("Gen")
+        gen_menu.addAction(gen_one)
+        gen_menu.addAction(gen_from)
+        gen_menu.addAction(gen_rest)
+        gen_menu.addSeparator()
+        gen_menu.addAction(stop_act)
+        gen_menu.addAction(merge_act)
+
+        listen_menu = self.menuBar().addMenu("Nghe")
+        listen_menu.addAction(self._play_act)
+        listen_menu.addAction(self._pause_act)
+        listen_menu.addAction(self._stop_listen_act)
+        listen_menu.addSeparator()
+        listen_menu.addAction(self._final_act)
+
         bar = QToolBar("Main")
         bar.setMovable(False)
+        bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        bar.setIconSize(QSize(20, 20))
         self.addToolBar(bar)
-
-        def btn(label: str, slot, shortcut: str | None = None) -> None:
-            act = QAction(label, self)
-            act.triggered.connect(slot)
-            if shortcut:
-                act.setShortcut(QKeySequence(shortcut))
+        for act in (open_act, save_act):
             bar.addAction(act)
-
-        btn("Mở JSON", self.open_json, "Ctrl+O")
-        btn("Lưu JSON", self.save_json, "Ctrl+Shift+S")
         bar.addSeparator()
-        btn("Gen câu này", lambda: self.start_gen("one"))
-        btn("Gen từ đây", lambda: self.start_gen("from"))
-        btn("Gen chưa xong", lambda: self.start_gen("pending"))
-        btn("Dừng", self.stop_gen)
+        for act in (gen_one, gen_from, gen_rest, stop_act, merge_act):
+            bar.addAction(act)
         bar.addSeparator()
-        btn("Nghe", self.play_selected, "Ctrl+P")
-        btn("Thư mục audio", self.open_audio_dir)
-
+        bar.addAction(self._play_act)
         bar.addSeparator()
-        bar.addWidget(QLabel(" Giọng "))
         self.voice_box = QComboBox()
         self.voice_box.setEditable(True)
-        self.voice_box.setMinimumWidth(180)
+        self.voice_box.setCompleter(None)
+        self.voice_box.setMinimumWidth(160)
+        self.voice_box.setToolTip("Giọng")
         self._fill_voices([(name, name) for name in FALLBACK_VOICES], voice)
         QTimer.singleShot(0, self.refresh_voices)
         bar.addWidget(self.voice_box)
-        load_v = QPushButton("Tải giọng")
-        load_v.clicked.connect(self.refresh_voices)
-        bar.addWidget(load_v)
-        bar.addWidget(QLabel("  API "))
-        self.api_edit = QLineEdit(key)
-        self.api_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_edit.setMinimumWidth(220)
-        bar.addWidget(self.api_edit)
-        save_k = QPushButton("Lưu key")
-        save_k.clicked.connect(self.save_key)
-        bar.addWidget(save_k)
-
-        file_menu = self.menuBar().addMenu("File")
-        file_menu.addAction(bar.actions()[0])
-        file_menu.addAction(bar.actions()[1])
+        bar.addAction(refresh_act)
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.table = QTableWidget(0, 5)
@@ -143,6 +252,7 @@ class MainWindow(QMainWindow):
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.table.itemSelectionChanged.connect(self._on_select)
+        self.table.itemDoubleClicked.connect(self._on_double_click)
         split.addWidget(self.table)
 
         edit_box = QWidget()
@@ -162,23 +272,87 @@ class MainWindow(QMainWindow):
         row.addStretch()
         ev.addLayout(row)
         split.addWidget(edit_box)
+        split.addWidget(self._build_player())
+
+        log_box = QWidget()
+        lv = QVBoxLayout(log_box)
+        lv.setContentsMargins(8, 4, 8, 4)
+        lv.addWidget(QLabel("Log"))
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setMaximumBlockCount(2000)
+        self.log.setPlaceholderText("Trạng thái gen hiện ở đây…")
+        self.log.setMinimumHeight(90)
+        lv.addWidget(self.log)
+        split.addWidget(log_box)
         split.setStretchFactor(0, 3)
-        split.setStretchFactor(1, 1)
+        split.setStretchFactor(1, 2)
+        split.setStretchFactor(2, 0)
+        split.setStretchFactor(3, 1)
 
         wrap = QWidget()
         lay = QVBoxLayout(wrap)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(split)
-        self.setCentralWidget(wrap)
-
+        self._tabs = QTabWidget()
+        self._tabs.addTab(wrap, "TTS")
         self.setStatusBar(QStatusBar())
+        self.stt_panel = SttPanel(self._open_from_stt, self._stt_status)
+        self._tabs.addTab(self.stt_panel, "STT")
+        self.setCentralWidget(self._tabs)
         save_act = QAction(self)
         save_act.setShortcut(QKeySequence.StandardKey.Save)
         save_act.triggered.connect(lambda: self.save_editor())
         self.addAction(save_act)
 
+    def _stt_status(self, text: str) -> None:
+        self.statusBar().showMessage(text)
+
+    def _open_from_stt(self, path: Path) -> None:
+        self._tabs.setCurrentIndex(0)
+        self._load(path)
+
+    def _build_player(self) -> QWidget:
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(8, 4, 8, 4)
+        row = QHBoxLayout()
+        for act in (self._play_act, self._pause_act, self._stop_listen_act, self._final_act):
+            button = QToolButton()
+            button.setDefaultAction(act)
+            button.setAutoRaise(True)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            button.setIconSize(QSize(20, 20))
+            row.addWidget(button)
+        self.play_label = QLabel("Chưa phát")
+        row.addWidget(self.play_label, 1)
+        lay.addLayout(row)
+        seek_row = QHBoxLayout()
+        self.seek = QSlider(Qt.Orientation.Horizontal)
+        self.seek.setRange(0, 0)
+        self.seek.sliderPressed.connect(self._on_seek_press)
+        self.seek.sliderReleased.connect(self._on_seek_release)
+        self.time_label = QLabel("00:00 / 00:00")
+        seek_row.addWidget(self.seek, 1)
+        seek_row.addWidget(self.time_label)
+        lay.addLayout(seek_row)
+        self._scrubbing = False
+        if self._player is not None:
+            self._player.positionChanged.connect(self._on_pos)
+            self._player.durationChanged.connect(self._on_dur)
+        return box
+
     def _set_status(self, text: str) -> None:
         self.statusBar().showMessage(text)
+        self._log(text)
+
+    def _log(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+        self.log.appendPlainText(f"{datetime.now():%H:%M:%S}  {text}")
+        bar = self.log.verticalScrollBar()
+        bar.setValue(bar.maximum())
 
     def _counts(self) -> None:
         done, err, n = self.project.counts()
@@ -216,7 +390,20 @@ class MainWindow(QMainWindow):
             data = self.voice_box.itemData(idx)
             if isinstance(data, str) and data.strip():
                 return data.strip()
-        return resolve_voice(text or "Ngọc Lan")
+        return text or "Ngọc Lan"
+
+    def edit_api_key(self) -> None:
+        text, ok = QInputDialog.getText(
+            self,
+            "API key VieNeu",
+            "API key",
+            QLineEdit.EchoMode.Password,
+            self.api_edit.text(),
+        )
+        if not ok:
+            return
+        self.api_edit.setText(text.strip())
+        self.save_key()
 
     def save_key(self) -> None:
         try:
@@ -227,18 +414,25 @@ class MainWindow(QMainWindow):
         self._set_status("Đã lưu API key.")
 
     def refresh_voices(self) -> None:
-        token = ""
-        if self.voice_box.count():
-            data = self.voice_box.currentData()
-            token = data.strip() if isinstance(data, str) and data.strip() else self.voice_box.currentText().strip()
-        try:
-            choices = list_voice_catalog(self.api_edit.text().strip())
-        except Exception as exc:
-            QMessageBox.critical(self, "VieNeu", str(exc))
+        if self._voice_thread and self._voice_thread.isRunning():
             return
-        if not choices:
-            choices = [(name, name) for name in FALLBACK_VOICES]
-        self._fill_voices(choices, token)
+        data = self.voice_box.currentData()
+        token = data.strip() if isinstance(data, str) and data.strip() else self.voice_box.currentText().strip()
+        self._voice_token = token
+        self._set_status("Đang tải danh sách giọng…")
+        thread = VoiceCatalogThread(self.api_edit.text().strip())
+        thread.loaded.connect(self._on_voices)
+        self._voice_thread = thread
+        thread.start()
+
+    def _on_voices(self, payload: object) -> None:
+        if isinstance(payload, Exception):
+            QMessageBox.critical(self, "VieNeu", str(payload))
+            return
+        choices = list(payload) if payload else [(name, name) for name in FALLBACK_VOICES]
+        self.voice_box.setUpdatesEnabled(False)
+        self._fill_voices(choices, getattr(self, "_voice_token", ""))
+        self.voice_box.setUpdatesEnabled(True)
         self._set_status(f"Giọng V4: {len(choices)}")
 
     def open_json(self) -> None:
@@ -328,7 +522,14 @@ class MainWindow(QMainWindow):
         if not self._selected or not self.project.json_path:
             return
         if self.project.set_text(self._selected, self.editor.toPlainText()):
-            self.refresh_table()
+            self._paint_row(self._selected)
+            row = self._row_of(self._selected)
+            preview_item = self.table.item(row, 4) if row >= 0 else None
+            if preview_item is not None:
+                preview = self.editor.toPlainText().replace("\n", " ")
+                if len(preview) > 140:
+                    preview = preview[:137] + "..."
+                preview_item.setText(preview)
             if not silent:
                 self._set_status(f"Đã lưu text {self._selected}.")
 
@@ -345,7 +546,7 @@ class MainWindow(QMainWindow):
 
     def start_gen(self, mode: str) -> None:
         if self._thread and self._thread.isRunning():
-            QMessageBox.information(self, "TTS", "Đang gen. Bấm Dừng nếu muốn.")
+            self._set_status("Đang gen. Bấm Dừng nếu muốn chạy lại.")
             return
         if not self.project.json_path:
             QMessageBox.warning(self, "TTS", "Mở JSON trước.")
@@ -374,6 +575,7 @@ class MainWindow(QMainWindow):
             return
         worker = GenWorker(self.project, key, voice, todo)
         thread = GenThread(worker)
+        worker.busy.connect(self._on_busy)
         worker.progressed.connect(self._on_progress)
         worker.failed.connect(self._on_fail)
         worker.need_key.connect(self._on_need_key, Qt.ConnectionType.QueuedConnection)
@@ -388,16 +590,63 @@ class MainWindow(QMainWindow):
         thread.start()
         self._set_status(f"Gen {len(todo)} câu · {label}.")
 
+    def start_merge(self) -> None:
+        if not self.project.json_path:
+            self._set_status("Mở JSON trước.")
+            return
+        if self._thread and self._thread.isRunning():
+            self._set_status("Đang gen, bấm Ghép file sau khi dừng hoặc xong.")
+            return
+        if self._merge_thread and self._merge_thread.isRunning():
+            self._set_status("Đang ghép.")
+            return
+        self._set_status("Đang ghép từ câu đầu…")
+        thread = MergeThread(self.project)
+        thread.finished_merge.connect(self._on_merged)
+        thread.finished.connect(self._clear_merge)
+        self._merge_thread = thread
+        thread.start()
+
+    def _on_merged(self, path: object, note: str) -> None:
+        self._set_status(note)
+
+    def _clear_merge(self) -> None:
+        self._merge_thread = None
+
     def stop_gen(self) -> None:
         if self._worker:
             self._worker.cancel()
 
-    def _on_progress(self, _sid: str) -> None:
-        self.refresh_table()
-        self._counts()
+    def _paint_row(self, sid: str) -> None:
+        row = self._row_of(sid)
+        if row < 0:
+            return
+        status = self.project.status_of(sid)
+        item = self.table.item(row, 1)
+        if item is None:
+            return
+        item.setText(status)
+        color = _COLORS.get(status)
+        if color:
+            item.setForeground(color)
+
+    def _on_busy(self, sid: str) -> None:
+        if self.project.status_of(sid) == STATUS_ERROR:
+            self._paint_row(sid)
+            return
+        self._paint_row(sid)
+        done, _err, n = self.project.counts()
+        self._set_status(f"Đang gen {sid} · {done}/{n}")
+
+    def _on_progress(self, sid: str) -> None:
+        self._paint_row(sid)
+        done, err, n = self.project.counts()
+        name = self.project.json_path.name if self.project.json_path else ""
+        self.statusBar().showMessage(f"{name} — {done}/{n} xong · {err} lỗi")
+        self._log(f"Xong {sid} · {done}/{n}")
 
     def _on_need_key(self, sid: str, msg: str) -> None:
-        self.refresh_table()
+        self._paint_row(sid)
         self._select_sid(sid)
         self._set_status(f"{sid}: hết hạn mức token. Câu đã gen vẫn giữ.")
         text, ok = QInputDialog.getText(
@@ -420,18 +669,16 @@ class MainWindow(QMainWindow):
         self._worker.supply_key(key)
 
     def _on_fail(self, sid: str, msg: str) -> None:
-        self.refresh_table()
-        self._counts()
-        self._set_status(f"Lỗi {sid}: {msg[:180]} — câu trước đó đã lưu.")
+        self._paint_row(sid)
+        done, err, n = self.project.counts()
+        name = self.project.json_path.name if self.project.json_path else ""
+        self.statusBar().showMessage(f"{name} — {done}/{n} xong · {err} lỗi")
+        self._log(f"Lỗi {sid}: {msg} — câu trước đó đã lưu.")
 
     def _on_stopped(self) -> None:
-        self.refresh_table()
-        self._counts()
         self._set_status("Đã dừng. Câu đã gen được giữ. Dán key mới rồi bấm Gen chưa xong.")
 
     def _on_done(self) -> None:
-        self.refresh_table()
-        self._counts()
         done, _err, n = self.project.counts()
         if self.project.merged_now and self.project.merged_now.is_file():
             self._set_status(f"Đủ câu. Đã ghép {self.project.merged_now.name}")
@@ -444,13 +691,19 @@ class MainWindow(QMainWindow):
         self._thread = None
         self._worker = None
 
-    def play_selected(self) -> None:
-        if not self._selected:
-            return
-        audio = self.project.audio_of(self._selected)
-        if not audio:
-            QMessageBox.information(self, "Nghe", "Câu này chưa có file audio.")
-            return
+    def _on_double_click(self, item: QTableWidgetItem) -> None:
+        sid_item = self.table.item(item.row(), 2)
+        if sid_item:
+            self._selected = sid_item.text()
+        self.play_selected()
+
+    def _fmt_ms(self, ms: int) -> str:
+        sec = max(0, ms) // 1000
+        return f"{sec // 60:02d}:{sec % 60:02d}"
+
+    def _play_path(self, audio: Path, caption: str) -> None:
+        self.play_label.setText(caption)
+        self._log(f"Nghe {caption}")
         if self._player is not None:
             self._player.setSource(QUrl.fromLocalFile(str(audio)))
             self._player.play()
@@ -459,6 +712,61 @@ class MainWindow(QMainWindow):
             os.startfile(audio)  # type: ignore[attr-defined]
         except AttributeError:
             subprocess.Popen(["xdg-open", str(audio)])
+
+    def play_selected(self) -> None:
+        if not self._selected:
+            self._set_status("Chọn một câu trên bảng để nghe.")
+            return
+        audio = self.project.audio_of(self._selected)
+        if not audio:
+            QMessageBox.information(self, "Nghe", "Câu này chưa có file audio.")
+            return
+        self._play_path(audio, f"{self._selected} · {audio.name}")
+
+    def play_final(self) -> None:
+        path = self.project.final_file()
+        if path and not path.is_file():
+            wav = path.with_suffix(".wav")
+            path = wav if wav.is_file() else None
+        if not path or not path.is_file():
+            QMessageBox.information(self, "Nghe", "Chưa có file ghép. Gen đủ mọi câu thì mới có file .final.mp3.")
+            return
+        self._play_path(path, path.name)
+
+    def toggle_pause(self) -> None:
+        if self._player is None:
+            return
+        from PySide6.QtMultimedia import QMediaPlayer
+
+        if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._player.pause()
+            return
+        if self._player.playbackState() == QMediaPlayer.PlaybackState.PausedState:
+            self._player.play()
+            return
+        self.play_selected()
+
+    def stop_audio(self) -> None:
+        if self._player is not None:
+            self._player.stop()
+        self.play_label.setText("Đã dừng")
+
+    def _on_seek_press(self) -> None:
+        self._scrubbing = True
+
+    def _on_seek_release(self) -> None:
+        self._scrubbing = False
+        if self._player is not None:
+            self._player.setPosition(self.seek.value())
+
+    def _on_pos(self, pos: int) -> None:
+        if not self._scrubbing:
+            self.seek.setValue(pos)
+        self.time_label.setText(f"{self._fmt_ms(pos)} / {self._fmt_ms(self.seek.maximum())}")
+
+    def _on_dur(self, dur: int) -> None:
+        self.seek.setRange(0, max(0, dur))
+        self.time_label.setText(f"{self._fmt_ms(self._player.position() if self._player else 0)} / {self._fmt_ms(dur)}")
 
     def open_audio_dir(self) -> None:
         if not self.project.json_path:
@@ -469,6 +777,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.stop_gen()
+        if getattr(self, "stt_panel", None):
+            self.stt_panel.stop()
         if self.project.json_path:
             self.save_editor(silent=True)
             self.project.flush_state()
