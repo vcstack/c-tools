@@ -2,9 +2,12 @@
 name: kich-ban-truyen-ma
 description: >-
   Viết kịch bản truyện ma kể miệng (giọng Nam, chen “mọi người”) rồi xuất
-  md + JSON TTS trong kich-ban/. Tự gợi ý chủ đề (không hỏi user theme).
+  md + JSON TTS trong kich-ban/. JSON series nhiều tập thì gộp một kịch bản,
+  chào một lần, sắp theo dòng thời gian, tách chuyện không liên quan ra file
+  mới, kể đủ chi tiết, giữ tên series. Tự gợi ý chủ đề (không hỏi user theme).
   Dùng khi gen truyện, gợi ý truyện, tự tạo chuyện, truyện dài, làm kịch bản,
-  làm tương tự, sửa result.json / whisper-jax, hoặc file VieNeu / kênh YouTube.
+  làm tương tự, series, nhiều tập, ghép json, dòng thời gian, bảy gạo,
+  sửa result.json / whisper-jax, hoặc file VieNeu / kênh YouTube.
 ---
 
 # Kịch bản truyện ma (TTS + kênh riêng)
@@ -13,11 +16,30 @@ Bản cho **Claude Code**. Cursor dùng file giống tại `.cursor/skills/kich-
 
 ## Khi nào làm gì
 
-1. **Có `result.json` / transcript STT** → đọc hết chữ, bỏ đoạn máy bịa (câu lặp), sửa từ sai theo ngữ cảnh, rồi **viết lại** thành kịch bản gốc (đổi tên người/chỗ/năm). Không chép nguyên lời kênh nguồn. Độ dài bám nguồn; user bảo rút/dài thêm thì theo user.
-2. **Không có transcript** (gen / tự tạo / `/kich-ban-truyen-ma` / gợi ý truyện) → **không hỏi theme**. Làm mục **Gợi ý truyện**. Độ dài theo **Độ dài**.
-3. **User nói “làm tương tự”** → cùng quy trình với file STT / chủ đề mới, không làm lại tập đã có.
+1. **Có `result.json` / transcript STT của một chuyện** → đọc hết chữ, bỏ đoạn máy bịa (câu lặp), sửa từ sai theo ngữ cảnh, rồi **viết lại** thành kịch bản gốc (đổi tên người/chỗ/năm). Không chép nguyên lời kênh nguồn. Độ dài bám nguồn; user bảo rút/dài thêm thì theo user.
+2. **JSON là series nhiều tập** (nhiều video ghép, user nói series / nhiều tập / kể hết / kiểu bảy gạo) → mục **Series nhiều tập**. Không đổi tên nhân vật của series. Không áp bảng độ dài mặc định.
+3. **Không có transcript** (gen / tự tạo / `/kich-ban-truyen-ma` / gợi ý truyện) → **không hỏi theme**. Làm mục **Gợi ý truyện**. Độ dài theo **Độ dài**.
+4. **User nói “làm tương tự”** → cùng quy trình với file STT / chủ đề mới, không làm lại tập đã có. “Tương tự bảy gạo” trên một JSON khác = áp mục Series, không viết lại file bảy gạo.
 
 Không quan tâm timestamp. Được xóa hẳn câu ảo. Không commit `.webm` / `.m4a` / `yt-dlp.exe`.
+
+## Series nhiều tập
+
+Khi nguồn là **nhiều tập của một series** ghép trong một JSON:
+
+1. **Một kịch bản** kể hết mọi tập của series. Không tách mỗi tập thành một file.
+2. **Giới thiệu một lần.** Một hook, một lời chào kênh, một outro cuối file. Không lặp chào hay outro theo từng tập trong JSON.
+3. **Sắp theo dòng thời gian** của chuyện (ai trước, việc nào xảy ra trước). Bỏ thứ tự JSON và thứ tự playlist.
+4. **Chuyện khác không dính series** (chen giữa các tập) → **tách file mới** `kich-ban-<slug>.md` + JSON. Mỗi file tách có intro và outro riêng. Cùng họ, cùng mạch (cảnh bên, hồi kết, người nhà) thì **ở lại** file chính. Thấy đoạn không liên quan mà còn nằm trong file series thì tách tiếp.
+5. **Kể chi tiết.** Không rút ngắn so với JSON nguồn. Thiếu tình tiết là sai. Vẫn chia đoạn 1–3 câu miệng cho TTS. Không nhét thành vài khối văn dài.
+6. **Giữ tên** người, chỗ, năm của series đúng nguồn. Không đổi tên cho ra bản “gốc” khi user đang kể đúng series đó. Chuyện đã tách (không thuộc series) thì viết lại và đổi tên như mục STT một chuyện.
+7. **Năm phải khớp.** Ai mất năm nào thì không còn đi lại sau năm đó. Sắp xong thì đọc lại từng mốc năm.
+8. **Lời kể nghe một lần là hiểu**, mạch liền, câu miệng. Cấm chữ văn chương khó hiểu (kiểu “dòng họ lụi tàn”, “vỡ”). Cấm câu cụt, cụt ý. Nói về truyện thì **“chuyện này”**, không “lời này”.
+9. Nguồn do nhiều người kể: ngay sau lời chào, một câu — chuyện này mình tham khảo từ nhiều nguồn, từ cộng đồng, và từ họ hàng xa của người kể trong chuyện (điền đúng vai, ví dụ họ hàng xa của ông Ba). Không bịa nguồn nếu JSON không có.
+
+Độ dài series = bám nguồn, **không** dùng bảng 90–140 đoạn. Ghi chú trên md: `Series: một mạch, chào một lần`.
+
+Mẫu: `kich-ban/kich-ban-bay-gao.md`. File tách mẫu: `kich-ban-ba-tu`, `kich-ban-tro-nui-sap`.
 
 ## Gợi ý truyện (bắt buộc)
 
@@ -29,7 +51,7 @@ Mỗi lần chạy skill **không được** hỏi “muốn kể chuyện gì?�
 4. Còn lại (kể cả user không nói chủ đề) → **viết luôn 1 tập**: ưu tiên chủ user nêu; không nêu thì lấy gợi ý số 1. Mở chat bằng `Tập này: …` rồi xuất md + JSON.
 5. **Cuối tin** (sau khi viết file) lại in **5 gợi ý tập sau** (khác tập vừa viết). User chỉ cần “làm cái 3” / “làm cái cầu”.
 
-Kho (bỏ cái đã có file: ma trành, lồng đèn, nhà trọ Đà Lạt):
+Kho (bỏ mọi slug đã có file trong `kich-ban/`, kể cả bảy gạo, bà Tư, trọ Núi Sấp, ma trành, lồng đèn, nhà trọ Đà Lạt):
 
 - Cầu khỉ miền Tây — lời thề, đêm nước lớn, giả giọng người nhà bên kia sông
 - Nhà thờ họ / nhà từ — lấy đồ cúng, bóng áo dài gọi tên
@@ -51,7 +73,7 @@ Viết tập mới: đổi tên người, năm, xã; không copy nguyên câu kh
 
 ## Độ dài
 
-Mặc định (user không nói): **vừa** — khoảng 90–140 đoạn JSON, đọc ~15–22 phút. Không viết tập siêu ngắn kiểu 30–40 đoạn trừ user xin ngắn.
+Mặc định (user không nói, và **không** phải series): **vừa** — khoảng 90–140 đoạn JSON, đọc ~15–22 phút. Không viết tập siêu ngắn kiểu 30–40 đoạn trừ user xin ngắn. Series nhiều tập: bám nguồn, xem mục **Series nhiều tập**.
 
 | User nói | Đọc (ước lượng) | JSON | Cách viết |
 |----------|-----------------|------|-----------|
@@ -108,7 +130,7 @@ Ghi vào `kich-ban/` (repo C-Tools):
 | `kich-ban-<slug>.md` | Tiêu đề + 2–3 dòng ghi chú (kèm độ dài) + `---` + truyện (mỗi ý 1–3 câu, cách nhau dòng trống) |
 | `kich-ban-<slug>.json` | `{ source, speakers: ["SPEAKER_00"], segments: [{speaker, text, id}] }` — mỗi đoạn md = 1 segment, `id` = `s0000`… |
 
-JSON để kéo vào TTS Studio / tab TTS. Một speaker trừ user xin 2 giọng.
+JSON để kéo vào TTS Studio / tab TTS. Một speaker trừ user xin 2 giọng. Mỗi đoạn tối đa khoảng 260 ký tự, tối đa 3 câu. Số đọc thành chữ (`mười bảy`), năm giữ số (`năm 1990`).
 
 Outro mặc định (đổi nếu user đưa tên kênh):
 
@@ -119,6 +141,7 @@ Outro mặc định (đổi nếu user đưa tên kênh):
 
 ## Việc không làm
 
-- Không dịch Anh. Không tóm tắt thay vì viết full kịch bản. User xin dài mà ra bản ngắn là sai skill.
+- Không dịch Anh. Không tóm tắt thay vì viết full kịch bản. User xin dài mà ra bản ngắn là sai skill. Series mà cắt ngắn so với JSON nguồn là sai skill.
+- Không để chuyện không liên quan nằm trong file series.
 - Không để chữ `you` / rác STT cuối file.
 - Không push trừ user bảo push.
