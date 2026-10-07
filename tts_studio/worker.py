@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import threading
-
 from PySide6.QtCore import QObject, QThread, Signal
 
 from ctool.vieneu import brief_api_error, is_key_limit_error, list_voice_catalog, resolve_voice
 from tts_studio.project import TtsProject
+
+_KEY_HINT = " Giữ nguyên key. File → API key… để đổi, rồi Gen chưa xong."
 
 
 class GenWorker(QObject):
     progressed = Signal(str)
     busy = Signal(str)
     failed = Signal(str, str)
-    need_key = Signal(str, str)
     stopped = Signal()
     finished = Signal()
 
@@ -23,28 +22,9 @@ class GenWorker(QObject):
         self.voice = voice
         self.ids = ids
         self._cancel = False
-        self._new_key: str | None = None
-        self._key_event = threading.Event()
 
     def cancel(self) -> None:
         self._cancel = True
-        self._new_key = None
-        self._key_event.set()
-
-    def supply_key(self, key: str | None) -> None:
-        self._new_key = (key or "").strip() or None
-        if self._new_key:
-            self.api_key = self._new_key
-        self._key_event.set()
-
-    def _wait_for_key(self, sid: str, message: str) -> str | None:
-        self._new_key = None
-        self._key_event.clear()
-        self.need_key.emit(sid, message)
-        self._key_event.wait()
-        if self._cancel:
-            return None
-        return self._new_key
 
     def run(self) -> None:
         try:
@@ -66,11 +46,7 @@ class GenWorker(QObject):
                     raw = str(exc)
                     message = brief_api_error(raw)
                     if is_key_limit_error(raw) or is_key_limit_error(message):
-                        key = self._wait_for_key(sid, message)
-                        if not key:
-                            self.stopped.emit()
-                            return
-                        continue
+                        message = f"{message}{_KEY_HINT}"
                     self.failed.emit(sid, message)
                     return
         self.project.merge_final()

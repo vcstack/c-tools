@@ -56,7 +56,9 @@ def save_settings(
 ) -> dict[str, Any]:
     data = load_settings(root)
     if vieneu_api_key is not None:
-        data["vieneu_api_key"] = vieneu_api_key.strip()
+        stripped = vieneu_api_key.strip()
+        if stripped:
+            data["vieneu_api_key"] = stripped
     if hf_token is not None:
         data["hf_token"] = hf_token.strip()
     if voice_0 is not None and str(voice_0).strip():

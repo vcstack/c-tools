@@ -402,7 +402,11 @@ class MainWindow(QMainWindow):
         )
         if not ok:
             return
-        self.api_edit.setText(text.strip())
+        key = text.strip()
+        if not key:
+            self._set_status("Key trống — không đổi key đã lưu.")
+            return
+        self.api_edit.setText(key)
         self.save_key()
 
     def save_key(self) -> None:
@@ -578,7 +582,6 @@ class MainWindow(QMainWindow):
         worker.busy.connect(self._on_busy)
         worker.progressed.connect(self._on_progress)
         worker.failed.connect(self._on_fail)
-        worker.need_key.connect(self._on_need_key, Qt.ConnectionType.QueuedConnection)
         worker.stopped.connect(self._on_stopped)
         worker.finished.connect(self._on_done)
         worker.failed.connect(thread.quit)
@@ -645,29 +648,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"{name} — {done}/{n} xong · {err} lỗi")
         self._log(f"Xong {sid} · {done}/{n}")
 
-    def _on_need_key(self, sid: str, msg: str) -> None:
-        self._paint_row(sid)
-        self._select_sid(sid)
-        self._set_status(f"{sid}: hết hạn mức token. Câu đã gen vẫn giữ.")
-        text, ok = QInputDialog.getText(
-            self,
-            "VieNeu hết hạn mức",
-            f"Câu {sid} dừng vì token hết hạn hoặc hết hạn mức.\n"
-            "Dán API key mới để chạy tiếp từ câu này. Không gen lại câu đã xong.\n\n"
-            f"{msg[:280]}",
-            QLineEdit.EchoMode.Password,
-        )
-        key = text.strip() if ok else ""
-        if not self._worker:
-            return
-        if not key:
-            self._worker.supply_key(None)
-            return
-        self.api_edit.setText(key)
-        save_prefs(key, self.voice_box.currentText().strip())
-        self._set_status(f"Đổi key, chạy tiếp từ {sid}.")
-        self._worker.supply_key(key)
-
     def _on_fail(self, sid: str, msg: str) -> None:
         self._paint_row(sid)
         done, err, n = self.project.counts()
@@ -676,7 +656,7 @@ class MainWindow(QMainWindow):
         self._log(f"Lỗi {sid}: {msg} — câu trước đó đã lưu.")
 
     def _on_stopped(self) -> None:
-        self._set_status("Đã dừng. Câu đã gen được giữ. Dán key mới rồi bấm Gen chưa xong.")
+        self._set_status("Đã dừng. Câu đã gen được giữ.")
 
     def _on_done(self) -> None:
         done, _err, n = self.project.counts()
